@@ -1,18 +1,18 @@
-# 🚧 RF-DETR for Real-Time Pothole Detection on Edge Devices
+#  RF-DETR for Real-Time Pothole Detection on Edge Devices
 
 *A Capstone Project*
 
 ---
 
-## 📌 Abstract
+##  Abstract
 
-Road infrastructure monitoring is a critical challenge in many developing regions, where manual inspection is inefficient and costly. This project presents a real-time pothole detection system based on a **Robust Feature Detection Transformer (RF-DETR)** model. The system is designed to operate efficiently in **low-resource environments** and on **edge devices such as smartphones and dashcams**.
+Road infrastructure monitoring is a critical challenge in many developing regions, where manual inspection is inefficient and costly. This project presents a real-time pothole detection system based on a **Robust Feature Detection Transformer (RF-DETR)** model. The system is designed to operate efficiently in **low-resource environments** and upon completion, on **edge devices such as smartphones and dashcams**.
 
 The model was trained on a custom pothole dataset and evaluated using both quantitative metrics and qualitative analysis. Results show strong detection capability (mAP@50 ≈ 0.86, F1 ≈ 0.83), with limitations observed in detecting small-scale potholes. The system demonstrates practical applicability for deployment in real-world road monitoring scenarios.
 
 ---
 
-## 🧠 Introduction
+##  Introduction
 
 ### Background
 
@@ -42,7 +42,7 @@ To develop a **real-time, energy-efficient pothole detection system** using RF-D
 
 ---
 
-## ⚙️ Methodology
+##  Methodology
 
 ### Model Architecture
 
@@ -62,13 +62,13 @@ This project uses **RF-DETR (Robust Feature Detection Transformer)**, a transfor
 
 ### Dataset
 
-* Custom pothole dataset in COCO format
+* Custom pothole dataset in COCO format (https://universe.roboflow.com/muhammadmoin-arxtl/potholes-detection-jbnou/dataset/1)
 * Single-class detection task (Pothole)
 * Split into training, validation, and test sets
 
 ---
 
-## 📊 Results and Evaluation
+##  Results and Evaluation
 
 ### Overall Performance
 
@@ -97,14 +97,14 @@ This project uses **RF-DETR (Robust Feature Detection Transformer)**, a transfor
 
 ---
 
-## 📈 Training Analysis
+##  Training Analysis
 
 ### Loss Behavior
 
 * Training loss decreased steadily
 * Validation loss plateaued early (~epoch 5–8)
 
-👉 Indicates **early overfitting**
+This indicates **early overfitting**
 
 ### mAP Trends
 
@@ -117,7 +117,7 @@ The model quickly learns discriminative features but reaches a performance ceili
 
 ---
 
-## ❌ Error Analysis
+##  Error Analysis
 
 ### False Positives
 
@@ -128,7 +128,7 @@ Observed in:
 * Surface discoloration
 * Cracks resembling potholes
 
-👉 Cause: reliance on **texture-based features**
+ Cause: reliance on **texture-based features**
 
 ---
 
@@ -140,7 +140,7 @@ Observed in:
 * Low-contrast defects
 * Water-filled or irregular potholes
 
-👉 Cause:
+ Cause:
 
 * Poor scale sensitivity
 * Limited representation of subtle features
@@ -156,7 +156,7 @@ The model performs well on **visually distinct potholes** but struggles with:
 
 ---
 
-## 🎥 Video Inference
+##  Video Inference
 
 The model was tested on real-world road videos containing dense pothole distributions.
 
@@ -164,7 +164,7 @@ The model was tested on real-world road videos containing dense pothole distribu
 
 * Consistent detection across frames
 * Robust to motion and perspective changes
-* Minor flickering reduced via confidence filtering
+* Minor flickering on rendered videos. (can be reduced via confidence filtering)
 
 ### Significance
 
@@ -176,7 +176,7 @@ Demonstrates readiness for:
 
 ---
 
-## ⚠️ Limitations
+##  Limitations
 
 * Poor detection of small potholes
 * Sensitivity to lighting and shadows
@@ -185,9 +185,9 @@ Demonstrates readiness for:
 
 ---
 
-## 🔮 Future Work
+##  Future Work
 
-* Expand dataset with diverse conditions
+* Expand dataset with diverse conditions (local road conditions)
 * Improve small object detection (multi-scale training)
 * Apply advanced augmentation techniques
 * Deploy on edge devices (smartphones, IoT cameras)
@@ -195,7 +195,7 @@ Demonstrates readiness for:
 
 ---
 
-## 🖥️ Deployment Potential
+##  Deployment Potential
 
 This system can be deployed in:
 
@@ -206,13 +206,13 @@ This system can be deployed in:
 
 ---
 
-## 🧾 Conclusion
+##  Conclusion
 
 This project demonstrates that **transformer-based object detection (RF-DETR)** is a viable approach for pothole detection in real-world environments. Despite limitations in small object detection, the model achieves strong overall performance and shows clear potential for deployment in resource-constrained settings.
 
 ---
 
-## 📚 References
+##  References
 
 * Carion et al., *End-to-End Object Detection with Transformers (DETR)*
 * RF-DETR Documentation
@@ -221,9 +221,9 @@ This project demonstrates that **transformer-based object detection (RF-DETR)** 
 
 ---
 
-## 👩‍💻 Author
+##  Author
 
-**Eliza Nahayo Wandera**
+**Jude Wandera**
 Capstone Project — 2026
 
 ---
