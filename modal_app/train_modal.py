@@ -28,8 +28,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 HF_DATASET = "JBWan94/afroviewz-data"
 DATASET = "afroviewz-v1"
 VOL_ROOT = "/vol"
-# L4 is faster per dollar; Modal asks for a payment method on file before L4, T4 may work without one
-GPU = os.environ.get("AFROVIEWZ_GPU", "T4")
+# Preferred GPU types in order: Modal takes the first with free capacity.
+# L4 and A10 cost about USD 0.80 and 1.10 per hour, T4 about 0.59 but slower.
+GPU = os.environ.get("AFROVIEWZ_GPU", "L4,A10,T4").split(",")
 
 image = (
     modal.Image.debian_slim(python_version="3.11")
