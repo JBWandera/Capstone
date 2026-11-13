@@ -1,0 +1,31 @@
+name: Launch training on Modal
+
+# Pushing a change to ops/queue.yaml deploys the Modal app and starts the jobs
+# listed there. Needs repository secrets MODAL_TOKEN_ID and MODAL_TOKEN_SECRET.
+on:
+  push:
+    branches: [afroviewz, main]
+    paths: ["ops/queue.yaml"]
+  workflow_dispatch:
+
+concurrency:
+  group: modal-launch
+  cancel-in-progress: false
+
+jobs:
+  launch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+      MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install modal pyyaml
+      - name: Deploy the training app
+        run: modal deploy modal_app/train_modal.py
+      - name: Start the queued jobs
+        run: python ops/launch.py ops/queue.yaml

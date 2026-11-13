@@ -142,9 +142,10 @@ def train_yolo(exp_id: str, dataset_dir: str | Path, out_dir: str | Path | None 
 
 
 # ------------------------------------------------------------------ predictions
-def predict_split(predict_fn, split_dir: str | Path, batch: int = 8) -> tuple[list[dict], float]:
+def predict_split(predict_fn, split_dir: str | Path, batch: int = 8, max_per_image: int = 100) -> tuple[list[dict], float]:
     """predict_fn(list of PIL images) -> list of (xyxy array, scores array).
-    Returns COCO prediction records and mean milliseconds per image."""
+    Returns COCO prediction records (the max_per_image highest scores per image,
+    the same cap COCO mAP uses) and mean milliseconds per image."""
     split_dir = Path(split_dir)
     coco = C.load(split_dir / "_annotations.coco.json")
     preds, elapsed, n = [], 0.0, 0
@@ -157,7 +158,8 @@ def predict_split(predict_fn, split_dir: str | Path, batch: int = 8) -> tuple[li
         elapsed += time.perf_counter() - t0
         n += len(chunk)
         for im, (xyxy, scores) in zip(chunk, outs):
-            preds.extend(E.to_prediction_records(im["id"], xyxy, scores))
+            order = np.argsort(-np.asarray(scores))[:max_per_image]
+            preds.extend(E.to_prediction_records(im["id"], np.asarray(xyxy)[order], np.asarray(scores)[order]))
     return preds, 1000 * elapsed / max(n, 1)
 
 
@@ -177,9 +179,21 @@ def yolo_predict_fn(model, threshold: float = 0.001, imgsz: int = 640):
 
 
 def save_predictions(out_dir: str | Path, split: str, preds: list[dict], ms_per_image: float) -> None:
+    import gzip
     out_dir = Path(out_dir)
-    (out_dir / f"preds_{split}.json").write_text(json.dumps(preds))
+    with gzip.open(out_dir / f"preds_{split}.json.gz", "wt", encoding="utf-8") as f:
+        json.dump(preds, f)
     timing_path = out_dir / "timing.json"
     timing = json.loads(timing_path.read_text()) if timing_path.exists() else {}
     timing[split] = round(ms_per_image, 2)
     timing_path.write_text(json.dumps(timing, indent=2))
+
+
+def load_predictions(run_dir: str | Path, split: str) -> list[dict]:
+    import gzip
+    run_dir = Path(run_dir)
+    gz = run_dir / f"preds_{split}.json.gz"
+    if gz.exists():
+        with gzip.open(gz, "rt", encoding="utf-8") as f:
+            return json.load(f)
+    return json.loads((run_dir / f"preds_{split}.json").read_text())

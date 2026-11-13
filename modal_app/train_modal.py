@@ -26,6 +26,7 @@ import modal
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 HF_DATASET = "JBWan94/afroviewz-data"
+HF_RUNS = "JBWan94/afroviewz-runs"  # private model repo: one folder per run
 DATASET = "afroviewz-v1"
 VOL_ROOT = "/vol"
 # Preferred GPU types in order: Modal takes the first with free capacity.
@@ -70,6 +71,49 @@ def _fetch_dataset() -> Path:
     return target
 
 
+PUBLISH_FILES = ("config.json", "metrics.csv", "timing.json", "DONE", "curves.png", "results.csv",
+                 "preds_valid.json.gz", "preds_test.json.gz", "preds_holdout.json.gz", "status.json")
+
+
+def _publish(run_dir: Path, exp_id: str, with_weights: bool = False) -> None:
+    """Copy a run's small files (and optionally its best weights) to the private
+    Hugging Face repo, so results can be read without Modal access."""
+    from huggingface_hub import HfApi
+    api = HfApi(token=os.environ["HF_TOKEN"])
+    api.create_repo(HF_RUNS, repo_type="model", private=True, exist_ok=True)
+    files = [p for p in run_dir.rglob("*") if p.is_file() and p.name in PUBLISH_FILES]
+    if with_weights:
+        files += [p for p in run_dir.glob("checkpoint_best_*.pth")] + list((run_dir / "train" / "weights").glob("best.pt"))
+        files += [p for p in (run_dir / "export").rglob("*") if p.is_file()]
+    if not files:
+        return
+    from huggingface_hub import CommitOperationAdd
+    ops = [CommitOperationAdd(path_in_repo=f"runs/{exp_id}/{p.relative_to(run_dir)}", path_or_fileobj=str(p))
+           for p in files]
+    api.create_commit(HF_RUNS, operations=ops, commit_message=f"{exp_id}: {len(ops)} files")
+
+
+def _progress_publisher(run_dir: Path, exp_id: str, every_s: int = 600):
+    """Background thread: publish metrics every 10 minutes while training runs."""
+    import json
+    import threading
+    import time
+    stop = threading.Event()
+
+    def loop():
+        while not stop.wait(every_s):
+            try:
+                (run_dir / "status.json").write_text(json.dumps({"exp": exp_id, "state": "training",
+                                                                 "updated": time.strftime("%Y-%m-%d %H:%M:%S")}))
+                _publish(run_dir, exp_id)
+            except Exception as exc:  # noqa: BLE001  progress reports must never stop training
+                print("progress publish failed:", exc, flush=True)
+
+    t = threading.Thread(target=loop, daemon=True)
+    t.start()
+    return stop
+
+
 def _point_configs_at_image() -> None:
     from afroviewz import paths
     paths.CONFIG_DIR = Path("/root/configs")
@@ -84,6 +128,9 @@ def train(exp_id: str) -> dict:
 
     dataset_dir = _fetch_dataset()
     cfg = runner.experiment_config(exp_id)
+    run_dir = runner.runs_root() / exp_id
+    run_dir.mkdir(parents=True, exist_ok=True)
+    stop = _progress_publisher(run_dir, exp_id)
     if cfg["family"] == "yolo":
         run_dir = runner.train_yolo(exp_id, dataset_dir)
         from ultralytics import YOLO
@@ -94,13 +141,21 @@ def train(exp_id: str) -> dict:
         volume.commit()
         model = runner.load_rfdetr(exp_id, run_dir)
         predict = runner.rfdetr_predict_fn(model)
+    stop.set()
     for split in ("valid", "test"):
         preds, ms = runner.predict_split(predict, dataset_dir / split)
         runner.save_predictions(run_dir, split, preds, ms)
+    (run_dir / "status.json").write_text(json.dumps({"exp": exp_id, "state": "done"}))
     volume.commit()
+    _publish(run_dir, exp_id, with_weights=True)
     out = {"run": exp_id, "files": sorted(p.name for p in run_dir.iterdir()),
            "timing": json.loads((run_dir / "timing.json").read_text())}
     print("RESULT", out, flush=True)
+    pub = Path("/tmp/smoke_pub")
+    pub.mkdir(exist_ok=True)
+    import json
+    (pub / "status.json").write_text(json.dumps({"exp": "smoke", "state": "done", **out}))
+    _publish(pub, "smoke")
     return out
 
 
@@ -119,7 +174,9 @@ def evaluate_checkpoint(name: str, checkpoint_path: str, model_class: str = "RFD
     for split in ("valid", "test"):
         preds, ms = runner.predict_split(runner.rfdetr_predict_fn(model), dataset_dir / split)
         runner.save_predictions(run_dir, split, preds, ms)
+    (run_dir / "status.json").write_text(json.dumps({"exp": name, "state": "done"}))
     volume.commit()
+    _publish(run_dir, name)
     return json.loads((run_dir / "timing.json").read_text())
 
 
@@ -133,6 +190,7 @@ def export_onnx(exp_id: str) -> list[str]:
     out = run_dir / "export"
     model.export(output_dir=str(out))
     volume.commit()
+    _publish(run_dir, exp_id, with_weights=True)
     return sorted(str(p) for p in out.rglob("*"))
 
 

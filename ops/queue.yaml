@@ -1,0 +1,4 @@
+# Edit and push to start Modal jobs (see ops/launch.py). Only what is listed
+# under "launch" in the latest push is started.
+launch:
+  - {kind: smoke}
