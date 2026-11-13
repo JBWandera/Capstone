@@ -126,6 +126,43 @@ def export_onnx(exp_id: str) -> list[str]:
     return sorted(str(p) for p in out.rglob("*"))
 
 
+@app.function(gpu="L4", timeout=1800, secrets=[hf_secret])
+def smoke() -> dict:
+    """Five minute end to end check on a 64 image subset: data, training, prediction, ONNX export."""
+    import shutil
+    import subprocess
+    import time
+    _point_configs_at_image()
+    from rfdetr import RFDETRNano
+    from afroviewz.data import coco as C
+    from afroviewz.eval import detection as E
+    from afroviewz.train import runner
+    t0 = time.time()
+    gpu = subprocess.run(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader"],
+                         capture_output=True, text=True).stdout.strip()
+    full = _fetch_dataset()
+    t_data = time.time() - t0
+    small = Path("/tmp/smoke")
+    for split, n in (("train", 64), ("valid", 24), ("test", 24)):
+        c = C.load(full / split / "_annotations.coco.json")
+        sub = C.subset(c, [im["id"] for im in c["images"][:n]])
+        (small / split).mkdir(parents=True, exist_ok=True)
+        for im in sub["images"]:
+            shutil.copy(full / split / im["file_name"], small / split / im["file_name"])
+        C.save(sub, small / split / "_annotations.coco.json")
+    model = RFDETRNano()
+    model.train(dataset_dir=str(small), output_dir="/tmp/smoke_out", epochs=1, batch_size=8,
+                grad_accum_steps=1, tensorboard=False)
+    t_train = time.time() - t0 - t_data
+    model = RFDETRNano(pretrain_weights=str(runner.best_checkpoint("/tmp/smoke_out")))
+    preds, ms = runner.predict_split(runner.rfdetr_predict_fn(model), small / "test")
+    m = E.coco_metrics(C.load(small / "test" / "_annotations.coco.json"), preds)
+    model.export(output_dir="/tmp/smoke_export")
+    return {"gpu": gpu, "data_s": round(t_data), "train_1_epoch_64_imgs_s": round(t_train),
+            "test_preds": len(preds), "ms_per_img": round(ms, 1), "mAP50_after_1_epoch": round(m["AP50"], 3),
+            "onnx": [p.name for p in Path("/tmp/smoke_export").rglob("*.onnx")]}
+
+
 @app.local_entrypoint()
 def main(exp: str = "E2_rfdetr_nano", export: bool = False):
     if export:
