@@ -1,0 +1,36 @@
+# data and model files never go in git (they live on Drive and Hugging Face)
+data/
+*.pth
+*.ckpt
+*.onnx
+*.tflite
+runs/
+output/
+mlruns/
+wandb/
+
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# secrets
+.env
+*.key
+kaggle.json
+
+# editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# node (web app)
+node_modules/
+.next/
+dist/

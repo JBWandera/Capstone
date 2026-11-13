@@ -1,0 +1,73 @@
+# AfroViewz data sources.
+# Every source is converted to COCO with one category: pothole (id 1).
+# role: train  -> used for train / valid / test splits
+#       holdout -> never trained on, only used as an external test set
+#       negatives -> pothole free road images (hard negatives)
+
+sources:
+  stellenbosch:
+    title: Road Pothole Images (Stellenbosch University, South Africa)
+    homepage: https://scholar.sun.ac.za/handle/10019.1/97191
+    download: dataset-tools  # dtools.download(dataset="Road Pothole Images")
+    dataset_tools_name: Road Pothole Images
+    format: supervisely
+    license: CC0-1.0
+    role: train
+    region: South Africa
+    notes: Dashcam frames at 3680x2760. Many small, distant potholes. Includes pothole free frames used as negatives.
+    max_negatives: 2500   # cap on pothole free frames kept, so negatives do not swamp the data
+
+  roboflow_seg:
+    title: pothole detection (Roboflow Universe, project-etnb9)
+    homepage: https://universe.roboflow.com/project-etnb9/pothole-detection-6vpbs
+    download: roboflow
+    workspace: project-etnb9
+    project: pothole-detection-6vpbs
+    version: 2
+    export_format: coco-segmentation
+    format: coco
+    license: CC-BY-4.0   # confirm on the project page before publishing
+    role: train
+    region: Mixed
+    notes: Polygon masks, used for the severity (segmentation) model.
+
+  capstone_v1:
+    title: Potholes detection (Roboflow Universe, muhammadmoin-arxtl), the v1 capstone dataset
+    homepage: https://universe.roboflow.com/muhammadmoin-arxtl/potholes-detection-jbnou/dataset/1
+    download: roboflow
+    workspace: muhammadmoin-arxtl
+    project: potholes-detection-jbnou
+    version: 1
+    export_format: coco
+    format: coco
+    license: CC-BY-4.0   # confirm on the project page before publishing
+    role: train
+    region: Mixed
+    notes: Kept so v2 results can be compared with the original capstone.
+
+  uganda_mapillary:
+    title: Mapillary street level images, Uganda
+    homepage: https://www.mapillary.com
+    download: mapillary
+    format: images_only   # labelled later in Roboflow, then exported as COCO
+    license: CC-BY-SA-4.0
+    role: holdout
+    region: Uganda
+    notes: External test set. Attribution to each image creator is kept in metadata.csv.
+    areas:
+      kampala:   [32.52, 0.25, 32.67, 0.40]   # min_lon, min_lat, max_lon, max_lat
+      entebbe:   [32.44, 0.03, 32.51, 0.10]
+      masaka:    [31.70, -0.36, 31.76, -0.31]
+      mbale:     [34.15, 1.05, 34.21, 1.10]
+      lira:      [32.88, 2.23, 32.92, 2.27]
+    max_images_per_sequence: 40
+    min_spacing_m: 15
+
+  uganda_phone:
+    title: AfroViewz phone footage, Uganda (optional)
+    download: manual   # put .mp4 files in data/raw/uganda_phone/
+    format: video
+    license: Own
+    role: holdout
+    region: Uganda
+    frame_every_s: 1.0

@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "afroviewz"
+version = "0.1.0"
+description = "AfroViewz: pothole detection and road condition mapping for Ugandan roads"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Jude Bwire Wandera" }]
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26",
+    "pandas>=2.0",
+    "pillow>=10.0",
+    "pyyaml>=6.0",
+    "requests>=2.31",
+    "tqdm>=4.66",
+    "imagehash>=4.3",
+]
+
+[project.optional-dependencies]
+# Everything needed to download sources and build the dataset (Colab notebooks 01 and 02)
+data = [
+    "roboflow>=1.1",
+    "dataset-tools>=0.1",
+    "matplotlib>=3.8",
+    "seaborn>=0.13",
+]
+# Training and evaluation (Colab GPU)
+train = [
+    "rfdetr[train,loggers,onnx]>=1.8",
+    "supervision>=0.26",
+]
+dev = ["pytest>=8.0", "nbformat>=5.9"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
