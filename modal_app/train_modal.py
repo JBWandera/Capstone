@@ -1,7 +1,9 @@
 """Train AfroViewz models on Modal GPUs, driven from the command line.
 
-    modal run modal_app/train_modal.py --exp E2_rfdetr_nano
-    modal run modal_app/train_modal.py --exp E2_rfdetr_nano --detach   (keeps running after you disconnect)
+    modal run --detach modal_app/train_modal.py --exp E2_rfdetr_nano
+
+--detach keeps the job running after the terminal closes; follow it with
+`modal app logs <app id>` (the id is printed at launch, or see `modal app list`).
 
 What happens on the GPU machine:
 1. the dataset zip is pulled from the private Hugging Face dataset repo
@@ -90,8 +92,10 @@ def train(exp_id: str) -> dict:
         preds, ms = runner.predict_split(predict, dataset_dir / split)
         runner.save_predictions(run_dir, split, preds, ms)
     volume.commit()
-    return {"run": exp_id, "files": sorted(p.name for p in run_dir.iterdir()),
-            "timing": json.loads((run_dir / "timing.json").read_text())}
+    out = {"run": exp_id, "files": sorted(p.name for p in run_dir.iterdir()),
+           "timing": json.loads((run_dir / "timing.json").read_text())}
+    print("RESULT", out, flush=True)
+    return out
 
 
 @app.function(gpu="L4", timeout=3600, volumes={VOL_ROOT: volume}, secrets=[hf_secret])
@@ -158,9 +162,11 @@ def smoke() -> dict:
     preds, ms = runner.predict_split(runner.rfdetr_predict_fn(model), small / "test")
     m = E.coco_metrics(C.load(small / "test" / "_annotations.coco.json"), preds)
     model.export(output_dir="/tmp/smoke_export")
-    return {"gpu": gpu, "data_s": round(t_data), "train_1_epoch_64_imgs_s": round(t_train),
-            "test_preds": len(preds), "ms_per_img": round(ms, 1), "mAP50_after_1_epoch": round(m["AP50"], 3),
-            "onnx": [p.name for p in Path("/tmp/smoke_export").rglob("*.onnx")]}
+    out = {"gpu": gpu, "data_s": round(t_data), "train_1_epoch_64_imgs_s": round(t_train),
+           "test_preds": len(preds), "ms_per_img": round(ms, 1), "mAP50_after_1_epoch": round(m["AP50"], 3),
+           "onnx": [p.name for p in Path("/tmp/smoke_export").rglob("*.onnx")]}
+    print("RESULT", out, flush=True)
+    return out
 
 
 @app.local_entrypoint()
