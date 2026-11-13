@@ -1,0 +1,64 @@
+# AfroViewz experiments. Each id is one training run, logged under
+# <Drive>/AfroViewz/runs/<id>/. Budget: free Colab T4, about 1 to 2 GPU hours per run.
+#
+# All RF-DETR runs share: AdamW, lr 1e-4 (encoder 1.5e-4), EMA, cosine schedule,
+# effective batch 16, early stopping on validation mAP (patience 8), seed 42.
+
+defaults:
+  epochs: 40
+  batch_size: 8
+  grad_accum_steps: 2
+  lr: 1.0e-4
+  lr_encoder: 1.5e-4
+  lr_scheduler: cosine
+  warmup_epochs: 1.0
+  early_stopping: true
+  early_stopping_patience: 8
+  early_stopping_use_ema: true
+  checkpoint_interval: 5
+  seed: 42
+
+experiments:
+  E1_yolo26s:
+    family: yolo
+    model: yolo26s.pt
+    imgsz: 640
+    epochs: 40
+    batch: 16
+    note: CNN baseline (AGPL 3.0, comparison only, never shipped)
+
+  E2_rfdetr_nano:
+    family: rfdetr
+    model: RFDETRNano
+    resolution: 384
+    note: phone and browser candidate
+
+  E2_rfdetr_small:
+    family: rfdetr
+    model: RFDETRSmall
+    resolution: 512
+
+  E2_rfdetr_medium:
+    family: rfdetr
+    model: RFDETRMedium
+    resolution: 576
+    batch_size: 4
+    grad_accum_steps: 4
+    note: server candidate
+
+  E3_rfdetr_small_704:
+    family: rfdetr
+    model: RFDETRSmall
+    resolution: 704
+    batch_size: 4
+    grad_accum_steps: 4
+    note: does more input resolution fix small potholes?
+
+  E6_rfdetr_seg_small:
+    family: rfdetr
+    model: RFDETRSegSmall
+    resolution: 384
+    dataset: afroviewz-v1-seg
+    batch_size: 4
+    grad_accum_steps: 4
+    note: severity model, trained only on images whose potholes have real outlines

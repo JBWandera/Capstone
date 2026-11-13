@@ -109,6 +109,8 @@ def test_mapillary_thin_spacing():
              "computed_geometry": {"coordinates": [32.58 + i * 0.00005, 0.31]}} for i in range(100)]
     kept = mapillary.thin(imgs, min_spacing_m=15, max_per_sequence=10)
     assert len(kept) == 10
+    capped = mapillary.thin(imgs + [dict(d, id="b" + d["id"], sequence="s2") for d in imgs], 15, 10, max_total=6)
+    assert len(capped) == 6 and {d["sequence"] for d in capped} == {"s1", "s2"}
     lons = [d["computed_geometry"]["coordinates"][0] for d in kept]
     assert all(b > a for a, b in zip(lons, lons[1:]))
 
@@ -139,3 +141,27 @@ def test_build_end_to_end(tmp_path: Path, roboflow_export: Path, supervisely_pro
         assert [c["id"] for c in exported["categories"]] == [0, 1]
         for im in exported["images"]:
             assert (out / "rfdetr" / name / im["file_name"]).exists()
+
+
+def test_one_per_group_and_mask_kind():
+    from afroviewz.data.build import one_per_group
+    coco = C.new_coco()
+    coco["images"] = [{"id": i, "file_name": f"{i}.jpg", "group": "a" if i < 3 else "b", "orig_split": "train"}
+                      for i in range(9)] + [{"id": 99, "file_name": "v.jpg", "group": "a", "orig_split": "valid"}]
+    out, dropped = one_per_group(coco, ("train",), copies=3)
+    groups = [im["group"] for im in out["images"] if im["orig_split"] == "train"]
+    assert groups.count("a") == 1 and groups.count("b") == 2 and dropped == 6
+    assert any(im["id"] == 99 for im in out["images"])
+    assert C.mask_kind([[0, 0, 10, 0, 10, 5, 0, 5]]) == "box"
+    assert C.mask_kind([[0, 0, 10, 0, 12, 5, 3, 8, 0, 5]]) == "polygon"
+    assert C.mask_kind([]) == "none"
+
+
+def test_group_spanning_two_sources_stays_in_one_split():
+    coco = C.new_coco()
+    coco["images"] = [{"id": i, "file_name": f"a{i}.jpg", "source": "a", "group": f"a{i}"} for i in range(50)]
+    coco["images"] += [{"id": 100 + i, "file_name": f"b{i}.jpg", "source": "b", "group": f"b{i}"} for i in range(50)]
+    for i in range(10):  # near duplicates across sources share one group
+        coco["images"][50 + i]["group"] = f"a{i}"
+    splits = split.grouped_split(coco)
+    assert not split.check_no_leakage(coco, splits)

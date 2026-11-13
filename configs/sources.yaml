@@ -16,6 +16,7 @@ sources:
     region: South Africa
     notes: Dashcam frames at 3680x2760. Many small, distant potholes. Includes pothole free frames used as negatives.
     max_negatives: 2500   # cap on pothole free frames kept, so negatives do not swamp the data
+    max_side: 1600        # many potholes here are small and distant; keep more pixels
 
   roboflow_seg:
     title: pothole detection (Roboflow Universe, project-etnb9)
@@ -29,7 +30,15 @@ sources:
     license: CC-BY-4.0   # confirm on the project page before publishing
     role: train
     region: Mixed
-    notes: Polygon masks, used for the severity (segmentation) model.
+    notes: >
+      Polygon masks, used for the severity (segmentation) model. Images were
+      stretched to 640x640 by the uploader and the train split holds 3
+      augmented copies of each photo (flips, 90 degree turns, crops); one copy
+      per photo is kept. Class "0" holds box-only labels, "pothole-in-road"
+      holds real outlines.
+    keep_categories: ["0", "pothole-in-road"]
+    one_per_group_splits: ["train"]
+    max_side: 1280
 
   capstone_v1:
     title: Potholes detection (Roboflow Universe, muhammadmoin-arxtl), the v1 capstone dataset
@@ -43,7 +52,9 @@ sources:
     license: CC-BY-4.0   # confirm on the project page before publishing
     role: train
     region: Mixed
-    notes: Kept so v2 results can be compared with the original capstone.
+    notes: Kept so v2 results can be compared with the original capstone. Images stretched to 640x640 by the uploader; the class is named "0".
+    keep_categories: ["0"]
+    max_side: 1280
 
   uganda_mapillary:
     title: Mapillary street level images, Uganda
@@ -61,7 +72,15 @@ sources:
       mbale:     [34.15, 1.05, 34.21, 1.10]
       lira:      [32.88, 2.23, 32.92, 2.27]
     max_images_per_sequence: 40
-    min_spacing_m: 15
+    min_spacing_m: 30
+    min_year: 2019          # recent roads only
+    max_images_per_area:    # candidates to screen; about 400 to 500 get labelled
+      kampala: 2000
+      entebbe: 300
+      masaka: 300
+      mbale: 300
+      lira: 300
+    max_side: 1600
 
   uganda_phone:
     title: AfroViewz phone footage, Uganda (optional)
