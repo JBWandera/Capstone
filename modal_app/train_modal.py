@@ -45,7 +45,10 @@ image = (
     )
     .env({"AFROVIEWZ_DATA": f"{VOL_ROOT}/data", "PYTHONUNBUFFERED": "1"})
     .add_local_dir(REPO_ROOT / "configs", "/root/configs")
-    .add_local_python_source("afroviewz", copy=False)
+    # the whole package folder, subpackages included (add_local_python_source
+    # left out afroviewz.data on the first try)
+    .add_local_dir(REPO_ROOT / "src" / "afroviewz", "/root/afroviewz",
+                   ignore=["**/__pycache__/**", "**/*.pyc"])
 )
 
 app = modal.App("afroviewz-train", image=image)
