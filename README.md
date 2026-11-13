@@ -4,7 +4,20 @@
 
 AfroViewz finds potholes in photos, videos and a live phone camera, grades how severe each one is, and puts them on a map that road engineers can export. It started as a data science capstone (archived in [`archive/capstone-v1`](archive/capstone-v1)) and is being rebuilt as a product for a presentation on 1 December 2026.
 
-> Status: **in progress**, data stage. See the plan below.
+> Status: **in progress**. Data stage done (notebooks 01 to 03 run, outputs committed). Next: training on Colab.
+
+## The dataset so far (`afroviewz-v1`)
+
+| | images | potholes | pothole free |
+|---|---|---|---|
+| train | 4,769 | 6,683 | 1,872 |
+| valid | 529 | 919 | 160 |
+| test | 594 | 840 | 238 |
+| **Uganda holdout** (to label) | 3,200 candidates from Kampala, Entebbe, Masaka, Mbale, Lira | | |
+
+Built from 7,452 cleaned source images (after dropping 1,622 baked-in augmented copies and capping pothole free dashcam frames at 2,500): 1,560 exact repeats removed (pixel checked), 267 near duplicate clusters each kept inside one split. Rebuilding gives the same split image for image (checked against `configs/manifests/afroviewz-v1_splits.csv`).
+
+Main EDA finding: at a 560 px model input, **98% of the dashcam potholes are under 32 px** (median 9 px), while the phone photo sources are mostly medium or large. This, more than any training setting, explains the v1 model's 0.04 small-object AP.
 
 ## What is different from the v1 capstone
 
@@ -33,11 +46,11 @@ archive/capstone-v1 the original capstone notebook, README and proposal
 |---|---|---|---|
 | 01 | Data acquisition | Collect and convert every source | [Colab](https://colab.research.google.com/github/JBWandera/Capstone/blob/afroviewz/notebooks/01_data_acquisition.ipynb) |
 | 02 | Cleaning, de-duplication, split | Data preparation | [Colab](https://colab.research.google.com/github/JBWandera/Capstone/blob/afroviewz/notebooks/02_data_cleaning_and_split.ipynb) |
-| 03 | Exploratory data analysis | Data understanding | coming |
-| 04 | Uganda holdout labelling | Test set construction | coming |
-| 05 | Baselines | Modelling | coming |
-| 06 | Training and tuning | Modelling | coming |
-| 07 | Evaluation and error analysis | Evaluation | coming |
+| 03 | Exploratory data analysis | Data understanding | [Colab](https://colab.research.google.com/github/JBWandera/Capstone/blob/afroviewz/notebooks/03_eda.ipynb) |
+| 04 | Uganda holdout labelling | Test set construction | [Colab](https://colab.research.google.com/github/JBWandera/Capstone/blob/afroviewz/notebooks/04_uganda_holdout.ipynb) |
+| 05 | Baselines (v1 model, YOLO26) | Modelling | [Colab](https://colab.research.google.com/github/JBWandera/Capstone/blob/afroviewz/notebooks/05_baselines.ipynb) |
+| 06 | Training RF-DETR (resumable) | Modelling | [Colab](https://colab.research.google.com/github/JBWandera/Capstone/blob/afroviewz/notebooks/06_train_rfdetr.ipynb) |
+| 07 | Evaluation and error analysis | Evaluation | [Colab](https://colab.research.google.com/github/JBWandera/Capstone/blob/afroviewz/notebooks/07_evaluation.ipynb) |
 | 08 | Optimization and export | Deployment | coming |
 
 ## Data sources

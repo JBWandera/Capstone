@@ -54,6 +54,11 @@ experiments:
     grad_accum_steps: 4
     note: does more input resolution fix small potholes?
 
+  # E4 (planned): RF-DETR Small trained on afroviewz-v1-roi, where the dashcam
+  # frames are cut to the road band (45 to 60 percent of image height holds the
+  # potholes) before the square resize. Notebook 03 shows 98 percent of dashcam
+  # potholes are under 32 px at 560 input; the crop roughly doubles their height.
+
   E6_rfdetr_seg_small:
     family: rfdetr
     model: RFDETRSegSmall

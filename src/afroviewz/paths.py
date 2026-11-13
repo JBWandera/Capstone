@@ -45,3 +45,9 @@ def interim_dir(source: str) -> Path:
 
 def processed_dir(name: str) -> Path:
     return data_root() / "processed" / name
+
+
+def image_path(file_name: str) -> Path:
+    """Where a merged-dataset image ('<source>/<path>') lives: in its source's interim folder."""
+    source, rest = file_name.split("/", 1)
+    return interim_dir(source) / "images" / rest
