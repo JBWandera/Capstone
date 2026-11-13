@@ -28,6 +28,8 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 HF_DATASET = "JBWan94/afroviewz-data"
 DATASET = "afroviewz-v1"
 VOL_ROOT = "/vol"
+# L4 is faster per dollar; Modal asks for a payment method on file before L4, T4 may work without one
+GPU = os.environ.get("AFROVIEWZ_GPU", "T4")
 
 image = (
     modal.Image.debian_slim(python_version="3.11")
@@ -69,7 +71,7 @@ def _point_configs_at_image() -> None:
     paths.CONFIG_DIR = Path("/root/configs")
 
 
-@app.function(gpu="L4", timeout=6 * 3600, volumes={VOL_ROOT: volume}, secrets=[hf_secret],
+@app.function(gpu=GPU, timeout=6 * 3600, volumes={VOL_ROOT: volume}, secrets=[hf_secret],
               retries=modal.Retries(max_retries=2, initial_delay=30.0))
 def train(exp_id: str) -> dict:
     import json
@@ -98,7 +100,7 @@ def train(exp_id: str) -> dict:
     return out
 
 
-@app.function(gpu="L4", timeout=3600, volumes={VOL_ROOT: volume}, secrets=[hf_secret])
+@app.function(gpu=GPU, timeout=3600, volumes={VOL_ROOT: volume}, secrets=[hf_secret])
 def evaluate_checkpoint(name: str, checkpoint_path: str, model_class: str = "RFDETRBase") -> dict:
     """Predict valid/test with an existing checkpoint stored on the volume (E0: the v1 capstone model)."""
     import json
@@ -117,7 +119,7 @@ def evaluate_checkpoint(name: str, checkpoint_path: str, model_class: str = "RFD
     return json.loads((run_dir / "timing.json").read_text())
 
 
-@app.function(gpu="L4", timeout=1800, volumes={VOL_ROOT: volume}, secrets=[hf_secret])
+@app.function(gpu=GPU, timeout=1800, volumes={VOL_ROOT: volume}, secrets=[hf_secret])
 def export_onnx(exp_id: str) -> list[str]:
     """Export the best checkpoint of a run to ONNX (for the API and the browser)."""
     _point_configs_at_image()
@@ -130,7 +132,7 @@ def export_onnx(exp_id: str) -> list[str]:
     return sorted(str(p) for p in out.rglob("*"))
 
 
-@app.function(gpu="L4", timeout=1800, secrets=[hf_secret])
+@app.function(gpu=GPU, timeout=1800, secrets=[hf_secret])
 def smoke() -> dict:
     """Five minute end to end check on a 64 image subset: data, training, prediction, ONNX export."""
     import shutil
