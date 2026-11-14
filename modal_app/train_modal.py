@@ -57,14 +57,14 @@ volume = modal.Volume.from_name("afroviewz", create_if_missing=True)
 hf_secret = modal.Secret.from_name("huggingface")
 
 
-def _fetch_dataset() -> Path:
-    """Download and unpack the dataset zip to local disk (fast I/O for training)."""
+def _fetch_dataset(name: str = DATASET) -> Path:
+    """Download and unpack a dataset zip to local disk (fast I/O for training)."""
     import zipfile
     from huggingface_hub import hf_hub_download
     local = Path("/tmp/datasets")
-    target = local / DATASET / "rfdetr"
+    target = local / name / "rfdetr"
     if not (target / "train" / "_annotations.coco.json").exists():
-        z = hf_hub_download(HF_DATASET, f"processed/{DATASET}.zip", repo_type="dataset",
+        z = hf_hub_download(HF_DATASET, f"processed/{name}.zip", repo_type="dataset",
                             token=os.environ["HF_TOKEN"], local_dir="/tmp/hf")
         with zipfile.ZipFile(z) as f:
             f.extractall(local)
@@ -126,8 +126,9 @@ def train(exp_id: str) -> dict:
     _point_configs_at_image()
     from afroviewz.train import runner
 
-    dataset_dir = _fetch_dataset()
     cfg = runner.experiment_config(exp_id)
+    eval_dir = _fetch_dataset()                              # always scored on the standard split
+    dataset_dir = _fetch_dataset(cfg.get("dataset", DATASET))  # what the model trains on
     run_dir = runner.runs_root() / exp_id
     run_dir.mkdir(parents=True, exist_ok=True)
     stop = _progress_publisher(run_dir, exp_id)
@@ -141,9 +142,12 @@ def train(exp_id: str) -> dict:
         volume.commit()
         model = runner.load_rfdetr(exp_id, run_dir)
         predict = runner.rfdetr_predict_fn(model)
+        if cfg.get("roi_inference"):
+            from afroviewz.data.roi import roi_predict_fn
+            predict = roi_predict_fn(predict)
     stop.set()
     for split in ("valid", "test"):
-        preds, ms = runner.predict_split(predict, dataset_dir / split)
+        preds, ms = runner.predict_split(predict, eval_dir / split)
         runner.save_predictions(run_dir, split, preds, ms)
     (run_dir / "status.json").write_text(json.dumps({"exp": exp_id, "state": "done"}))
     volume.commit()

@@ -46,7 +46,8 @@ def grouped_split(coco: dict, ratios=(0.8, 0.1, 0.1), seed: int = 42,
     # the source most of its images come from, and goes to one split as a whole
     by_source: dict[str, list[str]] = defaultdict(list)
     for g, srcs in group_sources.items():
-        by_source[max(set(srcs), key=srcs.count)].append(g)
+        # most common source; ties broken by name so every run gives the same answer
+        by_source[max(sorted(set(srcs)), key=srcs.count)].append(g)
 
     for src, gnames in sorted(by_source.items()):
         size = {g: (len(groups[g]), sum(n_boxes[i] for i in groups[g])) for g in gnames}
@@ -67,6 +68,25 @@ def grouped_split(coco: dict, ratios=(0.8, 0.1, 0.1), seed: int = 42,
             out[pick].extend(groups[g])
             got[pick][0] += size[g][0]
             got[pick][1] += size[g][1]
+    return dict(out)
+
+
+def frozen_split(coco: dict, manifest_csv, holdout_sources: tuple[str, ...] = (), **kwargs) -> dict[str, list[int]]:
+    """Use the split recorded in a manifest (file_name, split) for every image it
+    lists; images it does not list are split by grouped_split. This keeps the
+    published dataset fixed once models have been trained on it."""
+    import csv
+    with open(manifest_csv, encoding="utf-8") as f:
+        fixed = {r["file_name"]: r["split"] for r in csv.DictReader(f)}
+    known = [im for im in coco["images"] if im["file_name"] in fixed]
+    rest = {k: v for k, v in coco.items() if k != "images"}
+    rest["images"] = [im for im in coco["images"] if im["file_name"] not in fixed]
+    out: dict[str, list[int]] = defaultdict(list)
+    for im in known:
+        out[fixed[im["file_name"]]].append(im["id"])
+    if rest["images"]:
+        for sp, ids in grouped_split(rest, holdout_sources=holdout_sources, **kwargs).items():
+            out[sp].extend(ids)
     return dict(out)
 
 

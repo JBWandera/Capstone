@@ -4,18 +4,29 @@
 
 AfroViewz finds potholes in photos, videos and a live phone camera, grades how severe each one is, and puts them on a map that road engineers can export. It started as a data science capstone (archived in [`archive/capstone-v1`](archive/capstone-v1)) and is being rebuilt as a product for a presentation on 1 December 2026.
 
-> Status: **in progress**. Data stage done (notebooks 01 to 03 run, outputs committed). Next: training on Colab.
+> Status: **in progress**. Data stage done; first training round done (notebook 07). Round 2 (input resolution, road band crop) running on Modal.
+
+## First results (test split, 592 images, 846 potholes)
+
+| Model | Input | mAP50 (95% CI) | mAP50:95 | Precision | Recall | ms per image |
+|---|---|---|---|---|---|---|
+| RF-DETR Medium | 576 | 0.628 (0.584 to 0.679) | 0.334 | 0.700 | 0.602 | 9.7 |
+| YOLO26 small (comparison only) | 640 | 0.600 (0.556 to 0.648) | 0.313 | 0.641 | 0.585 | 6.9 |
+| RF-DETR Small | 512 | 0.578 (0.542 to 0.627) | 0.313 | 0.659 | 0.582 | 8.0 |
+| RF-DETR Nano | 384 | 0.522 (0.476 to 0.575) | 0.273 | 0.664 | 0.511 | 5.5 |
+
+Precision and recall at the threshold chosen on the validation split. Close-up phone photo sources score 0.72 to 0.84 mAP50; the South African dashcam frames, with their tiny potholes, score 0.40 to 0.55, which is what round 2 targets.
 
 ## The dataset so far (`afroviewz-v1`)
 
 | | images | potholes | pothole free |
 |---|---|---|---|
-| train | 4,769 | 6,683 | 1,872 |
-| valid | 529 | 919 | 160 |
-| test | 594 | 840 | 238 |
+| train | 4,766 | 6,689 | 1,872 |
+| valid | 534 | 907 | 160 |
+| test | 592 | 846 | 237 |
 | **Uganda holdout** (to label) | 3,200 candidates from Kampala, Entebbe, Masaka, Mbale, Lira | | |
 
-Built from 7,452 cleaned source images (after dropping 1,622 baked-in augmented copies and capping pothole free dashcam frames at 2,500): 1,560 exact repeats removed (pixel checked), 267 near duplicate clusters each kept inside one split. Rebuilding gives the same split image for image (checked against `configs/manifests/afroviewz-v1_splits.csv`).
+Built from 7,452 cleaned source images (after dropping 1,622 baked-in augmented copies and capping pothole free dashcam frames at 2,500): 1,560 exact repeats removed (pixel checked), 267 near duplicate clusters each kept inside one split. The split is frozen in `configs/manifests/afroviewz-v1_frozen_splits.csv` (the exact split the models were trained on); rebuilding reproduces it image for image.
 
 Main EDA finding: at a 560 px model input, **98% of the dashcam potholes are under 32 px** (median 9 px), while the phone photo sources are mostly medium or large. This, more than any training setting, explains the v1 model's 0.04 small-object AP.
 

@@ -77,7 +77,8 @@ def load_interim(interim_dir: str | Path) -> tuple[dict, Path]:
 
 def build_from_interim(interim: dict[str, Path], out_root: str | Path, holdout: tuple[str, ...] = (),
                        dup_distance: int = 6, max_mad: float = 6.0, seed: int = 42,
-                       link_images: bool = False, export_root: str | Path | None = None) -> dict:
+                       link_images: bool = False, export_root: str | Path | None = None,
+                       frozen_splits: str | Path | None = None) -> dict:
     """interim: {source_name: interim_dir}. Writes all.coco.json and the report to
     out_root, and the RF-DETR copy to export_root/rfdetr (default out_root). On
     Colab export_root is the local disk, so the image copies never fill Drive."""
@@ -120,7 +121,11 @@ def build_from_interim(interim: dict[str, Path], out_root: str | Path, holdout: 
         "groups_merged_by_near_duplicates": groups_merged,
     }}
 
-    splits = split.grouped_split(merged, seed=seed, holdout_sources=holdout)
+    if frozen_splits and Path(frozen_splits).exists():
+        splits = split.frozen_split(merged, frozen_splits, holdout_sources=holdout, seed=seed)
+        report["frozen_splits"] = str(frozen_splits)
+    else:
+        splits = split.grouped_split(merged, seed=seed, holdout_sources=holdout)
     leaks = split.check_no_leakage(merged, splits)
     if leaks:
         raise RuntimeError(f"split leakage: {leaks[:5]}")

@@ -165,3 +165,33 @@ def test_group_spanning_two_sources_stays_in_one_split():
         coco["images"][50 + i]["group"] = f"a{i}"
     splits = split.grouped_split(coco)
     assert not split.check_no_leakage(coco, splits)
+
+
+def test_roi_band_crop_and_inference_shift(tmp_path: Path):
+    import numpy as np
+    from afroviewz.data import roi
+    src = tmp_path / "rfdetr" / "test"
+    src.mkdir(parents=True)
+    _img(src / "stellenbosch__a.jpg", 400, 300, 1)
+    _img(src / "capstone_v1__b.jpg", 200, 200, 2)
+    coco = C.new_coco()
+    coco["images"] = [{"id": 1, "file_name": "stellenbosch__a.jpg", "width": 400, "height": 300},
+                      {"id": 2, "file_name": "capstone_v1__b.jpg", "width": 200, "height": 200}]
+    coco["annotations"] = [C.make_annotation(1, 1, [100, 150, 40, 20]),   # inside the band (105..225)
+                           C.make_annotation(2, 1, [10, 10, 30, 30]),     # above the band: dropped
+                           C.make_annotation(3, 2, [10, 10, 30, 30])]     # not dashcam: kept as is
+    C.save(coco, src / "_annotations.coco.json")
+    stats = roi.build_roi_export(tmp_path / "rfdetr", tmp_path / "roi")
+    out = C.load(tmp_path / "roi" / "test" / "_annotations.coco.json")
+    assert stats["test"]["boxes_dropped_outside_band"] == 1
+    assert out["images"][0]["height"] == 120
+    assert out["annotations"][0]["bbox"] == [100, 45, 40, 20]
+    calls = []
+    def base(images):
+        calls.append([im.size for im in images])
+        return [(np.array([[0, 10, 20, 30]]), np.array([0.9])) for _ in images]
+    from PIL import Image
+    fn = roi.roi_predict_fn(base)
+    res = fn([Image.new("RGB", (400, 300)), Image.new("RGB", (200, 200))], ["stellenbosch__a.jpg", "capstone_v1__b.jpg"])
+    assert calls[0] == [(400, 120), (200, 200)]
+    assert res[0][0][0].tolist() == [0, 115, 20, 135] and res[1][0][0].tolist() == [0, 10, 20, 30]

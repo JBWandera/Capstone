@@ -154,7 +154,10 @@ def predict_split(predict_fn, split_dir: str | Path, batch: int = 8, max_per_ima
         chunk = ims[i:i + batch]
         pil = [Image.open(split_dir / im["file_name"]).convert("RGB") for im in chunk]
         t0 = time.perf_counter()
-        outs = predict_fn(pil)
+        if getattr(predict_fn, "wants_names", False):
+            outs = predict_fn(pil, [im["file_name"] for im in chunk])
+        else:
+            outs = predict_fn(pil)
         elapsed += time.perf_counter() - t0
         n += len(chunk)
         for im, (xyxy, scores) in zip(chunk, outs):
