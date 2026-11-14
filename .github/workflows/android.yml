@@ -1,0 +1,55 @@
+name: Android APK
+
+# Builds the AfroViewz Android app (Capacitor wrapper around the static web app)
+# and attaches a debug APK to the run. Download it from the run's Artifacts.
+on:
+  workflow_dispatch:
+  push:
+    branches: [afroviewz, main]
+    paths: ["web/**", ".github/workflows/android.yml"]
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - name: Check for the model token
+        working-directory: .
+        run: |
+          if [ -z "$HF_TOKEN" ]; then echo "::warning::HF_TOKEN repository secret not set, so the APK cannot include the model. Skipping."; fi
+      - uses: actions/checkout@v4
+        if: env.HF_TOKEN != ''
+      - uses: actions/setup-node@v4
+        if: env.HF_TOKEN != ''
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: actions/setup-java@v4
+        if: env.HF_TOKEN != ''
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+        if: env.HF_TOKEN != ''
+      - name: Build the web app (downloads the model)
+        if: env.HF_TOKEN != ''
+        run: |
+          npm run build
+          test -f out/models/afroviewz-nano-fp16.onnx || { echo "::error::Model missing. Add the HF_TOKEN repository secret."; exit 1; }
+      - run: npx cap sync android
+        if: env.HF_TOKEN != ''
+      - name: Gradle assembleDebug
+        if: env.HF_TOKEN != ''
+        working-directory: web/android
+        run: ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        if: env.HF_TOKEN != ''
+        with:
+          name: afroviewz-debug-apk
+          path: web/android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30

@@ -12,6 +12,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/core": "^8.6.2",
     "maplibre-gl": "^6.18.0",
     "next": "16.4.6",
     "onnxruntime-web": "^1.31.1",
@@ -19,6 +21,7 @@
     "react-dom": "19.3.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.6.2",
     "@tailwindcss/turbopack": "4.3.3",
     "@types/node": "^20",
     "@types/react": "^19",

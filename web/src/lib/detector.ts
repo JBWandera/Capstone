@@ -38,7 +38,9 @@ async function loadOrt(): Promise<typeof OrtNs> {
 async function fetchModel(url: string, onProgress?: (f: number) => void): Promise<Uint8Array> {
   const cacheName = "afroviewz-model-v1";
   let res: Response | undefined;
-  if ("caches" in self) {
+  // Inside the Android app the model is already a local file in the APK.
+  const inApp = typeof window !== "undefined" && "Capacitor" in window;
+  if ("caches" in self && !inApp) {
     const cache = await caches.open(cacheName);
     res = await cache.match(url);
     if (!res) {
