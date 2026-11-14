@@ -44,6 +44,7 @@ const results = [
   { model: "RF-DETR Medium, round 1", map50: "0.628", ci: "0.584 to 0.679", ms: "9.7" },
   { model: "YOLO26 Small", map50: "0.600", ci: "0.556 to 0.648", ms: "6.9" },
   { model: "RF-DETR Nano, round 1", map50: "0.522", ci: "0.476 to 0.575", ms: "5.5" },
+  { model: "Original capstone model (v1)", map50: "0.350", ci: "0.304 to 0.422", ms: "" },
 ];
 
 export default function About() {

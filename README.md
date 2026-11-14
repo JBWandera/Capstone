@@ -19,8 +19,11 @@ AfroViewz finds potholes in photos, videos and a live phone camera, grades how s
 | E1 | YOLO26 small (comparison only) | 640 | 0.600 (0.556 to 0.648) | 0.313 | 0.641 | 0.585 | 6.9 |
 | E2 | RF-DETR Small | 512 | 0.578 (0.542 to 0.627) | 0.313 | 0.659 | 0.582 | 8.0 |
 | E2 | RF-DETR Nano | 384 | 0.522 (0.476 to 0.575) | 0.273 | 0.664 | 0.511 | 5.5 |
+| E0 | Original capstone model (RF-DETR Base, v1) | 560 | 0.350 (0.304 to 0.422) | | | | |
 
 Precision and recall at the threshold chosen on the validation split; speed on an NVIDIA L4.
+
+**Where we started (E0).** The original capstone model, trained only on the capstone Roboflow set, scores 0.350 overall on the same test split. On dashcam frames it scores 0.09 (best model now: 0.71) and on photos from sources it never saw 0.26 (now: 0.71). Its 0.95 on its own capstone photos is not a fair number: 34 of those 36 test photos were in its original training or validation data. This gap is why AfroViewz rebuilt the dataset from several sources with leak free splits.
 
 Round 1 showed the dashcam frames were the weak spot (0.46 mAP50 for RF-DETR Small) because their potholes are tiny. Round 2 changed one thing at a time on the same Small model:
 
