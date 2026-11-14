@@ -1,6 +1,7 @@
 # Edit and push to start Modal jobs (see ops/launch.py). Only what is listed
 # under "launch" in the latest push is started.
-request: 2026-11-14 round 2, small potholes
+request: 2026-11-14 round 3, road band crop on Medium, 704 and Nano
 launch:
-  - {kind: train, exp: E3_rfdetr_small_704}
-  - {kind: train, exp: E4_rfdetr_small_roi}
+  - {kind: train, exp: E5_rfdetr_medium_roi}
+  - {kind: train, exp: E5_rfdetr_small_roi_704}
+  - {kind: train, exp: E5_rfdetr_nano_roi}

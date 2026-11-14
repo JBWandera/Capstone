@@ -6,16 +6,25 @@ AfroViewz finds potholes in photos, videos and a live phone camera, grades how s
 
 > Status: **in progress**. Data stage done; first training round done (notebook 07). Round 2 (input resolution, road band crop) running on Modal.
 
-## First results (test split, 592 images, 846 potholes)
+## Results so far (test split, 592 images, 846 potholes)
 
-| Model | Input | mAP50 (95% CI) | mAP50:95 | Precision | Recall | ms per image |
-|---|---|---|---|---|---|---|
-| RF-DETR Medium | 576 | 0.628 (0.584 to 0.679) | 0.334 | 0.700 | 0.602 | 9.7 |
-| YOLO26 small (comparison only) | 640 | 0.600 (0.556 to 0.648) | 0.313 | 0.641 | 0.585 | 6.9 |
-| RF-DETR Small | 512 | 0.578 (0.542 to 0.627) | 0.313 | 0.659 | 0.582 | 8.0 |
-| RF-DETR Nano | 384 | 0.522 (0.476 to 0.575) | 0.273 | 0.664 | 0.511 | 5.5 |
+| Run | Model | Input | mAP50 (95% CI) | mAP50:95 | Precision | Recall | ms per image |
+|---|---|---|---|---|---|---|---|
+| E4 | RF-DETR Small, road band crop | 512 | **0.694** (0.655 to 0.742) | **0.377** | 0.743 | 0.651 | 8.5 |
+| E3 | RF-DETR Small | 704 | 0.667 (0.624 to 0.715) | 0.364 | 0.725 | 0.619 | 13.9 |
+| E2 | RF-DETR Medium | 576 | 0.628 (0.584 to 0.679) | 0.334 | 0.700 | 0.602 | 9.7 |
+| E1 | YOLO26 small (comparison only) | 640 | 0.600 (0.556 to 0.648) | 0.313 | 0.641 | 0.585 | 6.9 |
+| E2 | RF-DETR Small | 512 | 0.578 (0.542 to 0.627) | 0.313 | 0.659 | 0.582 | 8.0 |
+| E2 | RF-DETR Nano (current app model) | 384 | 0.522 (0.476 to 0.575) | 0.273 | 0.664 | 0.511 | 5.5 |
 
-Precision and recall at the threshold chosen on the validation split. Close-up phone photo sources score 0.72 to 0.84 mAP50; the South African dashcam frames, with their tiny potholes, score 0.40 to 0.55, which is what round 2 targets.
+Precision and recall at the threshold chosen on the validation split; speed on an NVIDIA L4.
+
+Round 1 showed the dashcam frames were the weak spot (0.46 mAP50 for RF-DETR Small) because their potholes are tiny. Round 2 changed one thing at a time on the same Small model:
+
+* **Road band crop (E4):** dashcam frames are cut to the strip of road between 35% and 75% of the image height before training and inference, so the potholes take up more of the model's input. Dashcam mAP50 rose from 0.46 to 0.66 and overall mAP50 from 0.578 to 0.694, with confidence intervals that no longer overlap. It costs nothing in speed.
+* **Higher input resolution (E3, 704 px):** dashcam mAP50 rose to 0.61 and overall to 0.667, but each image takes 75% longer.
+
+Round 3 applies the crop to Medium (best accuracy), to Small at 704 (do the two gains add up?) and to Nano (the phone model).
 
 ## The dataset so far (`afroviewz-v1`)
 

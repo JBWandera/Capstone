@@ -66,6 +66,35 @@ experiments:
       for training and inference; scored on the usual full frame labels.
       Same model and input as E2_rfdetr_small, so the crop is the only change.
 
+  # Round 3: the road band crop (E4) won round 2, so every round 3 run uses it.
+  E5_rfdetr_medium_roi:
+    family: rfdetr
+    model: RFDETRMedium
+    resolution: 576
+    batch_size: 4
+    grad_accum_steps: 4
+    dataset: afroviewz-v1-roi
+    roi_inference: true
+    note: best accuracy candidate, Medium plus the road band crop
+
+  E5_rfdetr_small_roi_704:
+    family: rfdetr
+    model: RFDETRSmall
+    resolution: 704
+    batch_size: 4
+    grad_accum_steps: 4
+    dataset: afroviewz-v1-roi
+    roi_inference: true
+    note: do crop and resolution add up? (E3 plus E4)
+
+  E5_rfdetr_nano_roi:
+    family: rfdetr
+    model: RFDETRNano
+    resolution: 384
+    dataset: afroviewz-v1-roi
+    roi_inference: true
+    note: phone model for the app, Nano plus the road band crop
+
   E6_rfdetr_seg_small:
     family: rfdetr
     model: RFDETRSegSmall

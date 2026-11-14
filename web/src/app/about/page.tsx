@@ -37,6 +37,8 @@ const steps = [
 ];
 
 const results = [
+  { model: "RF-DETR Small, road band crop", map50: "0.694", ci: "0.655 to 0.742", ms: "8.5" },
+  { model: "RF-DETR Small, 704 px input", map50: "0.667", ci: "0.624 to 0.715", ms: "13.9" },
   { model: "RF-DETR Medium", map50: "0.628", ci: "0.584 to 0.679", ms: "9.7" },
   { model: "YOLO26 Small", map50: "0.600", ci: "0.556 to 0.648", ms: "6.9" },
   { model: "RF-DETR Small", map50: "0.578", ci: "0.542 to 0.627", ms: "8.0" },
@@ -65,7 +67,7 @@ export default function About() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-xl font-semibold">Test results, round 1</h2>
+        <h2 className="text-xl font-semibold">Test results</h2>
         <p className="text-sm text-muted">592 test images, 846 potholes. Speed is on an NVIDIA L4 GPU.</p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm tabular">
@@ -90,8 +92,9 @@ export default function About() {
           </table>
         </div>
         <p className="text-sm text-muted">
-          The app ships the Nano model because it is the one that runs smoothly on a phone. Round 2 tests higher input
-          resolution and road band cropping for small, distant potholes.
+          Cropping dashcam frames to the band of road where potholes appear was the biggest single gain: dashcam
+          accuracy rose from 0.46 to 0.66 at no cost in speed. The app ships the Nano model because it runs smoothly
+          on a phone; a Nano trained with the road band crop is next.
         </p>
       </section>
 
