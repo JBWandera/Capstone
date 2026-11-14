@@ -1,4 +1,5 @@
 # Edit and push to start Modal jobs (see ops/launch.py). Only what is listed
 # under "launch" in the latest push is started.
+request: 2026-11-14 smoke test
 launch:
   - {kind: smoke}
