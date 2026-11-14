@@ -2,10 +2,11 @@
 # <Drive>/AfroViewz/runs/<id>/. Budget: free Colab T4, about 1 to 2 GPU hours per run.
 #
 # All RF-DETR runs share: AdamW, lr 1e-4 (encoder 1.5e-4), EMA, cosine schedule,
-# effective batch 16, early stopping on validation mAP (patience 8), seed 42.
+# effective batch 16, at most 25 epochs with early stopping on validation mAP
+# (patience 6), seed 42. Budget: Modal L4/A10 GPU, about 2 to 4 hours per run.
 
 defaults:
-  epochs: 40
+  epochs: 25
   batch_size: 8
   grad_accum_steps: 2
   lr: 1.0e-4
@@ -13,7 +14,7 @@ defaults:
   lr_scheduler: cosine
   warmup_epochs: 1.0
   early_stopping: true
-  early_stopping_patience: 8
+  early_stopping_patience: 6
   early_stopping_use_ema: true
   checkpoint_interval: 5
   seed: 42
@@ -23,7 +24,7 @@ experiments:
     family: yolo
     model: yolo26s.pt
     imgsz: 640
-    epochs: 40
+    epochs: 60
     batch: 16
     note: CNN baseline (AGPL 3.0, comparison only, never shipped)
 

@@ -119,7 +119,7 @@ def _point_configs_at_image() -> None:
     paths.CONFIG_DIR = Path("/root/configs")
 
 
-@app.function(gpu=GPU, timeout=6 * 3600, volumes={VOL_ROOT: volume}, secrets=[hf_secret],
+@app.function(gpu=GPU, timeout=10 * 3600, volumes={VOL_ROOT: volume}, secrets=[hf_secret],
               retries=modal.Retries(max_retries=2, initial_delay=30.0))
 def train(exp_id: str) -> dict:
     import json
@@ -151,11 +151,6 @@ def train(exp_id: str) -> dict:
     out = {"run": exp_id, "files": sorted(p.name for p in run_dir.iterdir()),
            "timing": json.loads((run_dir / "timing.json").read_text())}
     print("RESULT", out, flush=True)
-    pub = Path("/tmp/smoke_pub")
-    pub.mkdir(exist_ok=True)
-    import json
-    (pub / "status.json").write_text(json.dumps({"exp": "smoke", "state": "done", **out}))
-    _publish(pub, "smoke")
     return out
 
 
@@ -230,6 +225,11 @@ def smoke() -> dict:
            "test_preds": len(preds), "ms_per_img": round(ms, 1), "mAP50_after_1_epoch": round(m["AP50"], 3),
            "onnx": [p.name for p in Path("/tmp/smoke_export").rglob("*.onnx")]}
     print("RESULT", out, flush=True)
+    pub = Path("/tmp/smoke_pub")
+    pub.mkdir(exist_ok=True)
+    import json
+    (pub / "status.json").write_text(json.dumps({"exp": "smoke", "state": "done", **out}))
+    _publish(pub, "smoke")
     return out
 
 

@@ -1,5 +1,8 @@
 # Edit and push to start Modal jobs (see ops/launch.py). Only what is listed
 # under "launch" in the latest push is started.
-request: 2026-11-14 smoke test
+request: 2026-11-14 first training round
 launch:
-  - {kind: smoke}
+  - {kind: train, exp: E2_rfdetr_nano}
+  - {kind: train, exp: E2_rfdetr_small}
+  - {kind: train, exp: E2_rfdetr_medium}
+  - {kind: train, exp: E1_yolo26s}
