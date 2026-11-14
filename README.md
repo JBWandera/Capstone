@@ -2,9 +2,13 @@
 
 **Pothole detection and road condition mapping, tested on Ugandan roads.**
 
-AfroViewz finds potholes in photos, videos and a live phone camera, grades how severe each one is, and puts them on a map that road engineers can export. It started as a data science capstone (archived in [`archive/capstone-v1`](archive/capstone-v1)) and is being rebuilt as a product for a presentation on 1 December 2026.
+AfroViewz finds potholes in photos, videos and a live phone camera, right on the device, and puts them on a map that road engineers can export as GeoJSON or CSV. It started as a data science capstone (archived in [`archive/capstone-v1`](archive/capstone-v1)) and is being rebuilt as a product for a presentation on 1 December 2026.
 
-> Status: **in progress**. Data stage done; first training round done (notebook 07). Round 2 (input resolution, road band crop) running on Modal.
+**Try it:** https://afroviewz.vercel.app (works on phones; add it to the home screen to use it offline)
+**Model:** https://huggingface.co/JBWan94/afroviewz-pothole-detector
+**Android APK:** built by the `Android APK` workflow, download it from the latest run's Artifacts.
+
+> Status: **in progress**. Data, three training rounds and the app are done. Next: the hand checked Uganda test set, the documentation site and the slides.
 
 ## Results so far (test split, 592 images, 846 potholes)
 
