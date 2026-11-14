@@ -11,44 +11,30 @@ on:
 jobs:
   apk:
     runs-on: ubuntu-latest
-    env:
-      HF_TOKEN: ${{ secrets.HF_TOKEN }}
     defaults:
       run:
         working-directory: web
     steps:
-      - name: Check for the model token
-        working-directory: .
-        run: |
-          if [ -z "$HF_TOKEN" ]; then echo "::warning::HF_TOKEN repository secret not set, so the APK cannot include the model. Skipping."; fi
       - uses: actions/checkout@v4
-        if: env.HF_TOKEN != ''
       - uses: actions/setup-node@v4
-        if: env.HF_TOKEN != ''
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: web/package-lock.json
       - uses: actions/setup-java@v4
-        if: env.HF_TOKEN != ''
         with:
           distribution: temurin
           java-version: 21
       - run: npm ci
-        if: env.HF_TOKEN != ''
-      - name: Build the web app (downloads the model)
-        if: env.HF_TOKEN != ''
+      - name: Build the web app (downloads the public model)
         run: |
           npm run build
-          test -f out/models/afroviewz-nano-roi-fp16.onnx || { echo "::error::Model missing. Add the HF_TOKEN repository secret."; exit 1; }
+          test -f out/models/afroviewz-nano-roi-fp16.onnx || { echo "::error::Model missing after build."; exit 1; }
       - run: npx cap sync android
-        if: env.HF_TOKEN != ''
       - name: Gradle assembleDebug
-        if: env.HF_TOKEN != ''
         working-directory: web/android
         run: ./gradlew assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
-        if: env.HF_TOKEN != ''
         with:
           name: afroviewz-debug-apk
           path: web/android/app/build/outputs/apk/debug/app-debug.apk
