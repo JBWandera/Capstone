@@ -2,19 +2,29 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { PotholeDetector } from "@/lib/detector";
-import { toSourceScale } from "@/lib/detector";
+import { BAND, toSourceScale } from "@/lib/detector";
 import { drawBoxes } from "@/lib/draw";
 import { IouTracker } from "@/lib/tracker";
 
 type Hit = { id: number; t: number; score: number; thumb: string };
 
-export function DetectVideo({ detector, threshold }: { detector: PotholeDetector; threshold: number }) {
+export function DetectVideo({
+  detector,
+  threshold,
+  dashcam,
+}: {
+  detector: PotholeDetector;
+  threshold: number;
+  dashcam: boolean;
+}) {
   const video = useRef<HTMLVideoElement>(null);
   const overlay = useRef<HTMLCanvasElement>(null);
   const tracker = useRef(new IouTracker());
   const running = useRef(false);
   const thr = useRef(threshold);
   thr.current = threshold;
+  const dash = useRef(dashcam);
+  dash.current = dashcam;
   const [url, setUrl] = useState<string | null>(null);
   const [count, setCount] = useState(0);
   const [fps, setFps] = useState(0);
@@ -39,7 +49,12 @@ export function DetectVideo({ detector, threshold }: { detector: PotholeDetector
     let frames = 0;
     let t0 = performance.now();
     while (!v.paused && !v.ended) {
-      const d = await detector.detect(v, thr.current);
+      if (v.readyState < 2 || !v.videoWidth) {
+        await new Promise((r) => requestAnimationFrame(r));
+        continue;
+      }
+      const band = dash.current && v.videoWidth > v.videoHeight ? BAND : undefined;
+      const d = await detector.detect(v, thr.current, band);
       const boxes = toSourceScale(d, v);
       const { active, fresh } = tracker.current.update(boxes, v.currentTime * 1000);
       drawBoxes(
@@ -47,6 +62,7 @@ export function DetectVideo({ detector, threshold }: { detector: PotholeDetector
         active.filter((t) => t.confirmed).map((t) => ({ ...t.box, label: `#${t.id}` })),
         v.videoWidth,
         v.videoHeight,
+        band,
       );
       if (fresh.length) {
         setCount(tracker.current.confirmedCount);

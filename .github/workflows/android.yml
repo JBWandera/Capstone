@@ -40,7 +40,7 @@ jobs:
         if: env.HF_TOKEN != ''
         run: |
           npm run build
-          test -f out/models/afroviewz-nano-fp16.onnx || { echo "::error::Model missing. Add the HF_TOKEN repository secret."; exit 1; }
+          test -f out/models/afroviewz-nano-roi-fp16.onnx || { echo "::error::Model missing. Add the HF_TOKEN repository secret."; exit 1; }
       - run: npx cap sync android
         if: env.HF_TOKEN != ''
       - name: Gradle assembleDebug

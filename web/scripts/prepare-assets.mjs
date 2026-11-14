@@ -16,7 +16,7 @@ for (const f of readdirSync(ortSrc)) {
   if (/^ort-wasm-simd-threaded(\.\w+)?\.(mjs|wasm)$/.test(f)) copyFileSync(join(ortSrc, f), join(ortDst, f));
 }
 
-const MODEL = "afroviewz-nano-fp16.onnx";
+const MODEL = "afroviewz-nano-roi-fp16.onnx";
 const modelDst = join(root, "public", "models", MODEL);
 if (!existsSync(modelDst)) {
   const token = process.env.HF_TOKEN;

@@ -10,12 +10,15 @@ AfroViewz finds potholes in photos, videos and a live phone camera, grades how s
 
 | Run | Model | Input | mAP50 (95% CI) | mAP50:95 | Precision | Recall | ms per image |
 |---|---|---|---|---|---|---|---|
-| E4 | RF-DETR Small, road band crop | 512 | **0.694** (0.655 to 0.742) | **0.377** | 0.743 | 0.651 | 8.5 |
+| E5 | RF-DETR Small, road band crop | 704 | **0.730** (0.689 to 0.778) | **0.413** | 0.755 | 0.701 | 12.4 |
+| E5 | RF-DETR Medium, road band crop | 576 | 0.700 (0.653 to 0.747) | 0.387 | 0.709 | 0.695 | 8.6 |
+| E4 | RF-DETR Small, road band crop | 512 | 0.694 (0.655 to 0.742) | 0.377 | 0.743 | 0.651 | 8.5 |
 | E3 | RF-DETR Small | 704 | 0.667 (0.624 to 0.715) | 0.364 | 0.725 | 0.619 | 13.9 |
+| E5 | RF-DETR Nano, road band crop (**app model**) | 384 | 0.643 (0.599 to 0.694) | 0.344 | 0.724 | 0.599 | 4.6 |
 | E2 | RF-DETR Medium | 576 | 0.628 (0.584 to 0.679) | 0.334 | 0.700 | 0.602 | 9.7 |
 | E1 | YOLO26 small (comparison only) | 640 | 0.600 (0.556 to 0.648) | 0.313 | 0.641 | 0.585 | 6.9 |
 | E2 | RF-DETR Small | 512 | 0.578 (0.542 to 0.627) | 0.313 | 0.659 | 0.582 | 8.0 |
-| E2 | RF-DETR Nano (current app model) | 384 | 0.522 (0.476 to 0.575) | 0.273 | 0.664 | 0.511 | 5.5 |
+| E2 | RF-DETR Nano | 384 | 0.522 (0.476 to 0.575) | 0.273 | 0.664 | 0.511 | 5.5 |
 
 Precision and recall at the threshold chosen on the validation split; speed on an NVIDIA L4.
 
@@ -24,7 +27,11 @@ Round 1 showed the dashcam frames were the weak spot (0.46 mAP50 for RF-DETR Sma
 * **Road band crop (E4):** dashcam frames are cut to the strip of road between 35% and 75% of the image height before training and inference, so the potholes take up more of the model's input. Dashcam mAP50 rose from 0.46 to 0.66 and overall mAP50 from 0.578 to 0.694, with confidence intervals that no longer overlap. It costs nothing in speed.
 * **Higher input resolution (E3, 704 px):** dashcam mAP50 rose to 0.61 and overall to 0.667, but each image takes 75% longer.
 
-Round 3 applies the crop to Medium (best accuracy), to Small at 704 (do the two gains add up?) and to Nano (the phone model).
+Round 3 kept the crop everywhere:
+
+* **Crop plus 704 px (E5 Small):** the two gains add up. Best model so far at 0.730 mAP50, dashcam 0.71, small pothole recall 0.67 (from 0.47).
+* **Medium with the crop:** 0.700, no better than Small with the crop at 512, so model size is not the bottleneck.
+* **Nano with the crop:** 0.643, up from 0.522, better than round 1's Medium while running in 4.6 ms. This is the model the app ships.
 
 ## The dataset so far (`afroviewz-v1`)
 

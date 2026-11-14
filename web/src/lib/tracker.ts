@@ -1,6 +1,8 @@
 // Small IoU tracker so a pothole seen across many video frames is counted once.
-// A track is confirmed after `minHits` matched frames and dropped after
-// `maxMissed` frames without a match.
+// A track is confirmed after `minHits` matched frames, or at once when a
+// detection is confident (`strongScore`), so slow devices that see each
+// pothole in only a frame or two still count it. Dropped after `maxMissed`
+// frames without a match.
 
 import type { Box } from "./detector";
 
@@ -31,6 +33,7 @@ export class IouTracker {
     private iouThreshold = 0.2,
     private minHits = 3,
     private maxMissed = 8,
+    private strongScore = 0.6,
   ) {}
 
   reset() {
@@ -62,7 +65,7 @@ export class IouTracker {
       tr.hits += 1;
       tr.missed = 0;
       tr.bestScore = Math.max(tr.bestScore, boxes[p.d].score);
-      if (!tr.confirmed && tr.hits >= this.minHits) {
+      if (!tr.confirmed && (tr.hits >= this.minHits || tr.bestScore >= this.strongScore)) {
         tr.confirmed = true;
         this.confirmedCount += 1;
         fresh.push(tr);
@@ -74,15 +77,20 @@ export class IouTracker {
     this.tracks = this.tracks.filter((t) => t.missed <= this.maxMissed);
     boxes.forEach((b, di) => {
       if (used.has(di)) return;
-      this.tracks.push({
+      const tr: Track = {
         id: this.nextId++,
         box: b,
         hits: 1,
         missed: 0,
-        confirmed: this.minHits <= 1,
+        confirmed: this.minHits <= 1 || b.score >= this.strongScore,
         bestScore: b.score,
         firstSeenMs: tMs,
-      });
+      };
+      this.tracks.push(tr);
+      if (tr.confirmed) {
+        this.confirmedCount += 1;
+        fresh.push(tr);
+      }
     });
     return { active: this.tracks.filter((t) => t.missed === 0), fresh };
   }

@@ -12,14 +12,18 @@
 import type * as OrtNs from "onnxruntime-web";
 
 export type Box = { x1: number; y1: number; x2: number; y2: number; score: number };
-export type Detection = { boxes: Box[]; ms: number; width: number; height: number };
+export type Detection = { boxes: Box[]; ms: number; width: number; height: number; offsetY: number };
+
+/** Road band for dashcam style frames, as fractions of image height (same as
+ *  src/afroviewz/data/roi.py). The model was trained on frames cut this way. */
+export const BAND: [number, number] = [0.35, 0.75];
 export type Backend = "webgpu" | "wasm";
 
 const MEAN = [0.485, 0.456, 0.406];
 const STD = [0.229, 0.224, 0.225];
 
 export const MODEL_URL =
-  process.env.NEXT_PUBLIC_MODEL_URL ?? "/models/afroviewz-nano-fp16.onnx";
+  process.env.NEXT_PUBLIC_MODEL_URL ?? "/models/afroviewz-nano-roi-fp16.onnx";
 export const DEFAULT_THRESHOLD = 0.35;
 const MAX_SIDE = 1920; // cap on the frame size we read back from the canvas
 
@@ -36,7 +40,7 @@ async function loadOrt(): Promise<typeof OrtNs> {
 
 /** Fetch the model once and keep it in the Cache API so the app works offline. */
 async function fetchModel(url: string, onProgress?: (f: number) => void): Promise<Uint8Array> {
-  const cacheName = "afroviewz-model-v1";
+  const cacheName = "afroviewz-model-v2";
   let res: Response | undefined;
   // Inside the Android app the model is already a local file in the APK.
   const inApp = typeof window !== "undefined" && "Capacitor" in window;
@@ -167,13 +171,22 @@ export class PotholeDetector {
         score: s,
       };
     });
-    return { boxes, ms: performance.now() - t0, width: W, height: H };
+    return { boxes, ms: performance.now() - t0, width: W, height: H, offsetY: 0 };
   }
 
-  /** Detect on an <img>, <video> frame, canvas or ImageBitmap. */
-  async detect(src: CanvasImageSource, threshold = DEFAULT_THRESHOLD): Promise<Detection> {
-    const px = readPixels(src);
-    return this.detectPixels(px, threshold);
+  /** Detect on an <img>, <video> frame, canvas or ImageBitmap. With `band`,
+   *  only that horizontal strip is passed to the model (dashcam mode) and the
+   *  boxes are shifted back into full frame coordinates. */
+  async detect(src: CanvasImageSource, threshold = DEFAULT_THRESHOLD, band?: [number, number]): Promise<Detection> {
+    const px = readPixels(src, band);
+    const d = await this.detectPixels(px.data, threshold);
+    if (!px.offsetY) return d;
+    return {
+      ...d,
+      height: px.fullHeight,
+      offsetY: px.offsetY,
+      boxes: d.boxes.map((b) => ({ ...b, y1: b.y1 + px.offsetY, y2: b.y2 + px.offsetY })),
+    };
   }
 }
 
@@ -188,7 +201,10 @@ export function sourceSize(src: CanvasImageSource): [number, number] {
 
 /** Read pixels at native size (capped), so the model sees the same bilinear
  *  sampling as in training rather than the browser's own downscale filter. */
-export function readPixels(src: CanvasImageSource): ImageData {
+export function readPixels(
+  src: CanvasImageSource,
+  band?: [number, number],
+): { data: ImageData; offsetY: number; fullHeight: number } {
   const [w0, h0] = sourceSize(src);
   const f = Math.min(1, MAX_SIDE / Math.max(w0, h0));
   const w = Math.round(w0 * f);
@@ -198,7 +214,10 @@ export function readPixels(src: CanvasImageSource): ImageData {
   scratch.height = h;
   const ctx = scratch.getContext("2d", { willReadFrequently: true })!;
   ctx.drawImage(src, 0, 0, w, h);
-  return ctx.getImageData(0, 0, w, h);
+  if (!band) return { data: ctx.getImageData(0, 0, w, h), offsetY: 0, fullHeight: h };
+  const top = Math.round(band[0] * h);
+  const bottom = Math.round(band[1] * h);
+  return { data: ctx.getImageData(0, top, w, bottom - top), offsetY: top, fullHeight: h };
 }
 
 /** Boxes from readPixels space back to the source's native pixels. */

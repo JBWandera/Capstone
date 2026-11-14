@@ -6,6 +6,7 @@ export function drawBoxes(
   boxes: (Box & { label?: string })[],
   srcW: number,
   srcH: number,
+  band?: [number, number],
 ): void {
   const dpr = window.devicePixelRatio || 1;
   const cw = canvas.clientWidth;
@@ -21,6 +22,17 @@ export function drawBoxes(
   const s = Math.min(cw / srcW, ch / srcH);
   const ox = (cw - srcW * s) / 2;
   const oy = (ch - srcH * s) / 2;
+  if (band) {
+    // Shade what the model is not looking at in dashcam mode.
+    ctx.fillStyle = "rgba(0,0,0,0.45)";
+    ctx.fillRect(ox, oy, srcW * s, band[0] * srcH * s);
+    ctx.fillRect(ox, oy + band[1] * srcH * s, srcW * s, (1 - band[1]) * srcH * s);
+    ctx.strokeStyle = "rgba(245,165,36,0.5)";
+    ctx.setLineDash([6, 6]);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(ox, oy + band[0] * srcH * s, srcW * s, (band[1] - band[0]) * srcH * s);
+    ctx.setLineDash([]);
+  }
   ctx.lineWidth = 2.5;
   ctx.font = "600 12px ui-sans-serif, system-ui, sans-serif";
   for (const b of boxes) {

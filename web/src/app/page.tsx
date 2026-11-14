@@ -18,6 +18,7 @@ export default function Home() {
   const det = useDetector();
   const [mode, setMode] = useState<Mode>("photo");
   const [threshold, setThreshold] = useState(DEFAULT_THRESHOLD);
+  const [dashcam, setDashcam] = useState(true);
 
   return (
     <div className="pt-8 space-y-6">
@@ -45,6 +46,12 @@ export default function Home() {
             </button>
           ))}
         </div>
+        {mode !== "photo" && (
+          <label className="flex items-center gap-2 text-sm text-muted" title="Look only at the band of road where potholes appear in dashcam footage">
+            <input type="checkbox" checked={dashcam} onChange={(e) => setDashcam(e.target.checked)} className="accent-amber" />
+            Dashcam mode
+          </label>
+        )}
         <label className="flex items-center gap-3 text-sm text-muted ml-auto">
           Sensitivity
           <input
@@ -63,7 +70,7 @@ export default function Home() {
 
       {det.status === "loading" && (
         <div className="bg-panel border border-line rounded-xl p-6 text-sm">
-          <div className="mb-3">Loading the detector (about 60 MB, once; then it works offline)…</div>
+          <div className="mb-3">Loading the detector (about 60 MB, once, then it works offline)…</div>
           <div className="h-1.5 bg-line rounded-full overflow-hidden">
             <div className="h-full bg-amber transition-all" style={{ width: `${Math.round(det.progress * 100)}%` }} />
           </div>
@@ -77,8 +84,8 @@ export default function Home() {
       {det.status === "ready" && (
         <>
           {mode === "photo" && <DetectPhoto detector={det.detector} threshold={threshold} />}
-          {mode === "video" && <DetectVideo detector={det.detector} threshold={threshold} />}
-          {mode === "live" && <LiveCamera detector={det.detector} threshold={threshold} />}
+          {mode === "video" && <DetectVideo detector={det.detector} threshold={threshold} dashcam={dashcam} />}
+          {mode === "live" && <LiveCamera detector={det.detector} threshold={threshold} dashcam={dashcam} />}
           <p className="text-xs text-muted">
             Running on {det.detector.backend === "webgpu" ? "the GPU (WebGPU)" : "the CPU (WebAssembly)"} at{" "}
             {det.detector.resolution} px input.

@@ -2,12 +2,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { PotholeDetector } from "@/lib/detector";
-import { toSourceScale } from "@/lib/detector";
+import { BAND, toSourceScale } from "@/lib/detector";
 import { drawBoxes } from "@/lib/draw";
 import { IouTracker } from "@/lib/tracker";
 import { addReport, cropThumb, currentFix, newId, startLocation, stopLocation } from "@/lib/reports";
 
-export function LiveCamera({ detector, threshold }: { detector: PotholeDetector; threshold: number }) {
+export function LiveCamera({
+  detector,
+  threshold,
+  dashcam,
+}: {
+  detector: PotholeDetector;
+  threshold: number;
+  dashcam: boolean;
+}) {
   const video = useRef<HTMLVideoElement>(null);
   const overlay = useRef<HTMLCanvasElement>(null);
   const stream = useRef<MediaStream | null>(null);
@@ -15,6 +23,8 @@ export function LiveCamera({ detector, threshold }: { detector: PotholeDetector;
   const tracker = useRef(new IouTracker(0.2, 3, 6));
   const thr = useRef(threshold);
   thr.current = threshold;
+  const dash = useRef(dashcam);
+  dash.current = dashcam;
   const [on, setOn] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [count, setCount] = useState(0);
@@ -68,7 +78,12 @@ export function LiveCamera({ detector, threshold }: { detector: PotholeDetector;
     let frames = 0;
     let t0 = performance.now();
     while (live.current) {
-      const d = await detector.detect(v, thr.current);
+      if (v.readyState < 2 || !v.videoWidth) {
+        await new Promise((r) => requestAnimationFrame(r));
+        continue;
+      }
+      const band = dash.current && v.videoWidth > v.videoHeight ? BAND : undefined;
+      const d = await detector.detect(v, thr.current, band);
       const boxes = toSourceScale(d, v);
       const { active, fresh } = tracker.current.update(boxes, performance.now());
       drawBoxes(
@@ -76,6 +91,7 @@ export function LiveCamera({ detector, threshold }: { detector: PotholeDetector;
         active.filter((t) => t.confirmed).map((t) => t.box),
         v.videoWidth,
         v.videoHeight,
+        band,
       );
       if (fresh.length) {
         setCount(tracker.current.confirmedCount);
