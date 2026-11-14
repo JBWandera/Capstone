@@ -1,12 +1,13 @@
 """Run an exported RF-DETR ONNX model with onnxruntime.
 
 The contract (checked against rfdetr's own predict on the same image):
-  input  "input"  float32 [1, 3, R, R]  RGB resized to R x R (no letterbox),
+  input  "input"  float32 [1, 3, R, R]  RGB resized to R x R (no letterbox, plain bilinear
+                  without antialiasing),
                   scaled to 0..1 then normalised with ImageNet mean and std
   output "dets"   float32 [1, Q, 4]     cx, cy, w, h as fractions of the image
   output "labels" float32 [1, Q, K]     class logits; sigmoid gives scores
-Detection: take the top Q (query, class) pairs by score, keep the pothole
-class, map boxes back to the original image size. No NMS is needed (DETR).
+Detection: take the top Q (query, class) pairs by score, take the best class
+score per query (single class model, so any column that fires is a pothole), map boxes back to the original image size. No NMS is needed (DETR).
 The web app (web/src/lib/detector.ts) implements the same steps in TypeScript.
 """
 
@@ -31,7 +32,7 @@ class Detections:
 
 
 class OnnxDetector:
-    def __init__(self, path: str, class_ids: tuple[int, ...] = (1,), providers: list[str] | None = None):
+    def __init__(self, path: str, class_ids: tuple[int, ...] | None = None, providers: list[str] | None = None):
         import onnxruntime as ort
         self.session = ort.InferenceSession(path, providers=providers or ["CPUExecutionProvider"])
         inp = self.session.get_inputs()[0]
@@ -40,14 +41,20 @@ class OnnxDetector:
         self.class_ids = class_ids
 
     def preprocess(self, image: Image.Image) -> np.ndarray:
-        x = np.asarray(image.convert("RGB").resize((self.resolution, self.resolution), Image.BILINEAR), np.float32)
+        # Plain bilinear without antialiasing, the same resize rfdetr uses in
+        # training and predict (torch interpolate, align_corners=False).
+        # PIL's BILINEAR antialiases on downscale and shifts scores by up to 0.15.
+        import cv2
+        x = np.asarray(image.convert("RGB"), np.float32)
+        x = cv2.resize(x, (self.resolution, self.resolution), interpolation=cv2.INTER_LINEAR)
         x = (x / 255.0 - MEAN) / STD
         return x.transpose(2, 0, 1)[None].astype(np.float32)
 
     def __call__(self, image: Image.Image, threshold: float = 0.5, top_k: int = 100) -> Detections:
         w, h = image.size
         dets, logits = self.session.run(None, {self.input_name: self.preprocess(image)})
-        prob = 1.0 / (1.0 + np.exp(-logits[0][:, list(self.class_ids)]))  # (Q, len(class_ids))
+        cols = logits[0] if self.class_ids is None else logits[0][:, list(self.class_ids)]
+        prob = 1.0 / (1.0 + np.exp(-cols))  # (Q, n classes)
         score = prob.max(axis=1)
         order = np.argsort(-score)[:top_k]
         order = order[score[order] >= threshold]

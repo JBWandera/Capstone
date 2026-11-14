@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #111214;
+  --panel: #1a1c1f;
+  --line: #2a2d31;
+  --ink: #ecebe7;
+  --muted: #9a9da3;
+  --amber: #f5a524;
+  --amber-ink: #1a1204;
+  --danger: #ef5a4c;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-panel: var(--panel);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-muted: #9a9da3;
+  --color-amber: var(--amber);
+  --color-amber-ink: var(--amber-ink);
+  --color-danger: var(--danger);
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--ink);
+}
+
+body {
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+
+::selection {
+  background: var(--amber);
+  color: var(--amber-ink);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
