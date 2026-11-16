@@ -15,13 +15,19 @@ for (const f of readdirSync(ortSrc)) {
   if (/^ort-wasm-simd-threaded(\.\w+)?\.(mjs|wasm)$/.test(f)) copyFileSync(join(ortSrc, f), join(ortDst, f));
 }
 
-const MODEL = "afroviewz-nano-roi-fp16.onnx";
-const MODEL_URL = `https://huggingface.co/JBWan94/afroviewz-pothole-detector/resolve/main/${MODEL}`;
-const modelDst = join(root, "public", "models", MODEL);
-if (!existsSync(modelDst)) {
-  const res = await fetch(MODEL_URL);
-  if (!res.ok) throw new Error(`[prepare-assets] model download failed: ${res.status}`);
-  mkdirSync(dirname(modelDst), { recursive: true });
-  writeFileSync(modelDst, Buffer.from(await res.arrayBuffer()));
+// MapLibre loads its worker from a separate file the bundler does not place.
+const mlDst = join(root, "public", "maplibre");
+mkdirSync(mlDst, { recursive: true });
+copyFileSync(join(root, "node_modules", "maplibre-gl", "dist", "maplibre-gl-worker.mjs"), join(mlDst, "maplibre-gl-worker.mjs"));
+
+// Full model for WebGPU, INT8 model for devices that run on the processor.
+for (const MODEL of ["afroviewz-nano-roi-fp16.onnx", "afroviewz-nano-roi-int8.onnx"]) {
+  const url = `https://huggingface.co/JBWan94/afroviewz-pothole-detector/resolve/main/${MODEL}`;
+  const dst = join(root, "public", "models", MODEL);
+  if (existsSync(dst)) continue;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`[prepare-assets] ${MODEL} download failed: ${res.status}`);
+  mkdirSync(dirname(dst), { recursive: true });
+  writeFileSync(dst, Buffer.from(await res.arrayBuffer()));
   console.log(`[prepare-assets] downloaded ${MODEL}`);
 }

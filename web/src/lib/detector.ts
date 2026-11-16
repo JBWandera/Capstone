@@ -1,191 +1,112 @@
-// AfroViewz in-browser pothole detector.
-//
-// Same contract as src/afroviewz/infer/onnx_rfdetr.py, checked there against
-// rfdetr's own predict (identical counts and scores on 40 test images):
-//   input  "input"  float32 [1,3,R,R]  RGB, plain bilinear resize to R x R
-//                   (no antialiasing, align_corners=false), /255, ImageNet norm
-//   output "dets"   [1,Q,4]  cx, cy, w, h as fractions of the image
-//   output "labels" [1,Q,K]  class logits, sigmoid gives scores
-// Single class model: the score of a query is its best class score.
-// DETR needs no NMS.
-
-import type * as OrtNs from "onnxruntime-web";
+// AfroViewz detector, main thread side. The model itself runs in
+// detector.worker.ts so the interface never freezes while it works.
 
 export type Box = { x1: number; y1: number; x2: number; y2: number; score: number };
 export type Detection = { boxes: Box[]; ms: number; width: number; height: number; offsetY: number };
+export type Backend = "webgpu" | "wasm";
 
 /** Road band for dashcam style frames, as fractions of image height (same as
  *  src/afroviewz/data/roi.py). The model was trained on frames cut this way. */
 export const BAND: [number, number] = [0.35, 0.75];
-export type Backend = "webgpu" | "wasm";
 
-const MEAN = [0.485, 0.456, 0.406];
-const STD = [0.229, 0.224, 0.225];
-
-export const MODEL_URL =
-  process.env.NEXT_PUBLIC_MODEL_URL ?? "/models/afroviewz-nano-roi-fp16.onnx";
+export const MODEL_URL = process.env.NEXT_PUBLIC_MODEL_URL ?? "/models/afroviewz-nano-roi-fp16.onnx";
+/** INT8 version for devices without WebGPU: about twice as fast on the
+ *  processor, 0.623 test mAP50 against 0.643 for the full model. */
+export const MODEL_URL_CPU = process.env.NEXT_PUBLIC_MODEL_URL_CPU ?? "/models/afroviewz-nano-roi-int8.onnx";
 export const DEFAULT_THRESHOLD = 0.35;
-const MAX_SIDE = 1920; // cap on the frame size we read back from the canvas
+/** Longest side read back from photos (full detail, the result is shown once). */
+export const PHOTO_MAX_SIDE = 1920;
+/** Longest side read back from video and camera frames: small enough to be
+ *  quick and light on memory, large enough not to change the results. */
+export const STREAM_MAX_SIDE = 960;
 
-let ort: typeof OrtNs | null = null;
+const LITE_KEY = "afroviewz-lite";
 
-async function loadOrt(): Promise<typeof OrtNs> {
-  if (ort) return ort;
-  const mod = await import("onnxruntime-web/webgpu");
-  mod.env.wasm.wasmPaths = "/ort/";
-  mod.env.wasm.numThreads = self.crossOriginIsolated ? Math.min(4, navigator.hardwareConcurrency || 1) : 1;
-  ort = mod as unknown as typeof OrtNs;
-  return ort;
+/** Lite mode runs on the CPU only. It is switched on automatically if a live
+ *  session ended in a crash (some phones run out of graphics memory). */
+export function liteMode(): boolean {
+  try {
+    return localStorage.getItem(LITE_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+export function setLiteMode(on: boolean): void {
+  try {
+    if (on) localStorage.setItem(LITE_KEY, "1");
+    else localStorage.removeItem(LITE_KEY);
+  } catch {}
 }
 
-/** Fetch the model once and keep it in the Cache API so the app works offline. */
-async function fetchModel(url: string, onProgress?: (f: number) => void): Promise<Uint8Array> {
-  const cacheName = "afroviewz-model-v2";
-  let res: Response | undefined;
-  // Inside the Android app the model is already a local file in the APK.
-  const inApp = typeof window !== "undefined" && "Capacitor" in window;
-  if ("caches" in self && !inApp) {
-    const cache = await caches.open(cacheName);
-    res = await cache.match(url);
-    if (!res) {
-      const net = await fetch(url);
-      if (!net.ok) throw new Error(`model download failed: ${net.status}`);
-      await cache.put(url, net.clone());
-      res = net;
-    }
-  } else {
-    res = await fetch(url);
-  }
-  const total = Number(res.headers.get("content-length")) || 0;
-  if (!res.body || !total || !onProgress) return new Uint8Array(await res.arrayBuffer());
-  const reader = res.body.getReader();
-  const out = new Uint8Array(total);
-  let got = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    out.set(value, got);
-    got += value.length;
-    onProgress(got / total);
-  }
-  return out;
-}
+type Pending = { resolve: (r: { boxes: Box[]; ms: number }) => void; reject: (e: Error) => void };
 
 export class PotholeDetector {
-  private constructor(
-    private session: OrtNs.InferenceSession,
-    private ortMod: typeof OrtNs,
-    readonly resolution: number,
-    readonly backend: Backend,
-  ) {}
+  private pending = new Map<number, Pending>();
+  private nextId = 1;
+  backend: Backend = "wasm";
+  resolution = 384;
 
-  static async create(opts: { url?: string; onProgress?: (f: number) => void } = {}) {
-    const o = await loadOrt();
-    const bytes = await fetchModel(opts.url ?? MODEL_URL, opts.onProgress);
-    const tryBackends: Backend[] = "gpu" in navigator ? ["webgpu", "wasm"] : ["wasm"];
-    let lastErr: unknown;
-    for (const backend of tryBackends) {
-      try {
-        const session = await o.InferenceSession.create(bytes, {
-          executionProviders: [backend],
-          graphOptimizationLevel: "all",
-        });
-        const meta = session.inputMetadata?.[0] as { shape?: (number | string)[] } | undefined;
-        const r = Number(meta?.shape?.[3]) || 384;
-        return new PotholeDetector(session, o, r, backend);
-      } catch (e) {
-        lastErr = e;
-      }
-    }
-    throw lastErr;
-  }
+  private constructor(private worker: Worker) {}
 
-  /** Plain bilinear resize (align_corners=false, no antialias) + normalise to NCHW. */
-  private preprocess(px: ImageData): Float32Array {
-    const R = this.resolution;
-    const { width: W, height: H, data } = px;
-    const out = new Float32Array(3 * R * R);
-    const sx = W / R;
-    const sy = H / R;
-    const plane = R * R;
-    for (let y = 0; y < R; y++) {
-      let fy = (y + 0.5) * sy - 0.5;
-      if (fy < 0) fy = 0;
-      let y0 = Math.floor(fy);
-      if (y0 > H - 1) y0 = H - 1;
-      const y1 = Math.min(y0 + 1, H - 1);
-      const wy = fy - y0;
-      for (let x = 0; x < R; x++) {
-        let fx = (x + 0.5) * sx - 0.5;
-        if (fx < 0) fx = 0;
-        let x0 = Math.floor(fx);
-        if (x0 > W - 1) x0 = W - 1;
-        const x1 = Math.min(x0 + 1, W - 1);
-        const wx = fx - x0;
-        const i00 = (y0 * W + x0) * 4;
-        const i01 = (y0 * W + x1) * 4;
-        const i10 = (y1 * W + x0) * 4;
-        const i11 = (y1 * W + x1) * 4;
-        const o = y * R + x;
-        for (let c = 0; c < 3; c++) {
-          const top = data[i00 + c] * (1 - wx) + data[i01 + c] * wx;
-          const bot = data[i10 + c] * (1 - wx) + data[i11 + c] * wx;
-          const v = top * (1 - wy) + bot * wy;
-          out[c * plane + o] = (v / 255 - MEAN[c]) / STD[c];
-        }
-      }
-    }
-    return out;
-  }
-
-  async detectPixels(px: ImageData, threshold = DEFAULT_THRESHOLD, topK = 100): Promise<Detection> {
-    const t0 = performance.now();
-    const R = this.resolution;
-    const input = new this.ortMod.Tensor("float32", this.preprocess(px), [1, 3, R, R]);
-    const res = await this.session.run({ input });
-    const dets = res.dets.data as Float32Array;
-    const logits = res.labels.data as Float32Array;
-    const [, Q, K] = res.labels.dims as number[];
-    const cand: { q: number; s: number }[] = [];
-    for (let q = 0; q < Q; q++) {
-      let best = -Infinity;
-      for (let k = 0; k < K; k++) best = Math.max(best, logits[q * K + k]);
-      const s = 1 / (1 + Math.exp(-best));
-      if (s >= threshold) cand.push({ q, s });
-    }
-    cand.sort((a, b) => b.s - a.s);
-    const W = px.width;
-    const H = px.height;
-    const boxes = cand.slice(0, topK).map(({ q, s }) => {
-      const cx = dets[q * 4];
-      const cy = dets[q * 4 + 1];
-      const w = dets[q * 4 + 2];
-      const h = dets[q * 4 + 3];
-      const clampX = (v: number) => Math.min(Math.max(v, 0), W);
-      const clampY = (v: number) => Math.min(Math.max(v, 0), H);
-      return {
-        x1: clampX((cx - w / 2) * W),
-        y1: clampY((cy - h / 2) * H),
-        x2: clampX((cx + w / 2) * W),
-        y2: clampY((cy + h / 2) * H),
-        score: s,
+  static create(opts: { url?: string; onProgress?: (f: number) => void } = {}): Promise<PotholeDetector> {
+    const worker = new Worker(new URL("./detector.worker.ts", import.meta.url), { type: "module" });
+    const det = new PotholeDetector(worker);
+    return new Promise((resolve, reject) => {
+      worker.onmessage = (e: MessageEvent) => {
+        const m = e.data;
+        if (m.type === "progress") opts.onProgress?.(m.value);
+        else if (m.type === "ready") {
+          det.backend = m.backend;
+          det.resolution = m.resolution;
+          worker.onmessage = (ev) => det.onMessage(ev);
+          resolve(det);
+        } else if (m.type === "error") reject(new Error(m.message));
       };
+      worker.onerror = (e) => reject(new Error(e.message || "detector worker failed to start"));
+      const modelUrl = new URL(opts.url ?? MODEL_URL, location.href).href;
+      const cpuModelUrl = new URL(MODEL_URL_CPU, location.href).href;
+      worker.postMessage({ type: "init", modelUrl, cpuModelUrl, inApp: "Capacitor" in window, forceWasm: liteMode() });
     });
-    return { boxes, ms: performance.now() - t0, width: W, height: H, offsetY: 0 };
+  }
+
+  private onMessage(e: MessageEvent) {
+    const m = e.data;
+    const p = this.pending.get(m.id);
+    if (!p) return;
+    this.pending.delete(m.id);
+    if (m.type === "result") p.resolve({ boxes: m.boxes, ms: m.ms });
+    else p.reject(new Error(m.message));
+  }
+
+  async detectPixels(px: ImageData, threshold = DEFAULT_THRESHOLD): Promise<{ boxes: Box[]; ms: number }> {
+    const id = this.nextId++;
+    const buf = px.data.buffer as ArrayBuffer;
+    return new Promise((resolve, reject) => {
+      this.pending.set(id, { resolve, reject });
+      this.worker.postMessage(
+        { type: "detect", id, width: px.width, height: px.height, data: buf, threshold },
+        [buf],
+      );
+    });
   }
 
   /** Detect on an <img>, <video> frame, canvas or ImageBitmap. With `band`,
-   *  only that horizontal strip is passed to the model (dashcam mode) and the
-   *  boxes are shifted back into full frame coordinates. */
-  async detect(src: CanvasImageSource, threshold = DEFAULT_THRESHOLD, band?: [number, number]): Promise<Detection> {
-    const px = readPixels(src, band);
-    const d = await this.detectPixels(px.data, threshold);
-    if (!px.offsetY) return d;
+   *  only that horizontal strip goes to the model (dashcam mode) and boxes are
+   *  shifted back into full frame coordinates. */
+  async detect(
+    src: CanvasImageSource,
+    threshold = DEFAULT_THRESHOLD,
+    band?: [number, number],
+    maxSide = PHOTO_MAX_SIDE,
+  ): Promise<Detection> {
+    const px = readPixels(src, band, maxSide);
+    const r = await this.detectPixels(px.data, threshold);
     return {
-      ...d,
+      boxes: px.offsetY ? r.boxes.map((b) => ({ ...b, y1: b.y1 + px.offsetY, y2: b.y2 + px.offsetY })) : r.boxes,
+      ms: r.ms,
+      width: px.data.width,
       height: px.fullHeight,
       offsetY: px.offsetY,
-      boxes: d.boxes.map((b) => ({ ...b, y1: b.y1 + px.offsetY, y2: b.y2 + px.offsetY })),
     };
   }
 }
@@ -199,25 +120,27 @@ export function sourceSize(src: CanvasImageSource): [number, number] {
   return [Number(s.width), Number(s.height)];
 }
 
-/** Read pixels at native size (capped), so the model sees the same bilinear
- *  sampling as in training rather than the browser's own downscale filter. */
+/** Read the pixels the model needs: the whole frame, or only the road band,
+ *  scaled so the longest side of the frame is at most maxSide. */
 export function readPixels(
   src: CanvasImageSource,
   band?: [number, number],
+  maxSide = PHOTO_MAX_SIDE,
 ): { data: ImageData; offsetY: number; fullHeight: number } {
   const [w0, h0] = sourceSize(src);
-  const f = Math.min(1, MAX_SIDE / Math.max(w0, h0));
-  const w = Math.round(w0 * f);
-  const h = Math.round(h0 * f);
+  const f = Math.min(1, maxSide / Math.max(w0, h0));
+  const sy = band ? Math.round(band[0] * h0) : 0;
+  const sh = band ? Math.round(band[1] * h0) - sy : h0;
+  const w = Math.max(1, Math.round(w0 * f));
+  const h = Math.max(1, Math.round(sh * f));
   scratch ??= document.createElement("canvas");
-  scratch.width = w;
-  scratch.height = h;
+  if (scratch.width !== w || scratch.height !== h) {
+    scratch.width = w;
+    scratch.height = h;
+  }
   const ctx = scratch.getContext("2d", { willReadFrequently: true })!;
-  ctx.drawImage(src, 0, 0, w, h);
-  if (!band) return { data: ctx.getImageData(0, 0, w, h), offsetY: 0, fullHeight: h };
-  const top = Math.round(band[0] * h);
-  const bottom = Math.round(band[1] * h);
-  return { data: ctx.getImageData(0, top, w, bottom - top), offsetY: top, fullHeight: h };
+  ctx.drawImage(src, 0, sy, w0, sh, 0, 0, w, h);
+  return { data: ctx.getImageData(0, 0, w, h), offsetY: sy * f, fullHeight: Math.round(h0 * f) };
 }
 
 /** Boxes from readPixels space back to the source's native pixels. */

@@ -8,6 +8,9 @@ on:
     branches: [afroviewz, main]
     paths: ["web/**", ".github/workflows/android.yml"]
 
+permissions:
+  contents: write
+
 jobs:
   apk:
     runs-on: ubuntu-latest
@@ -39,3 +42,15 @@ jobs:
           name: afroviewz-debug-apk
           path: web/android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
+      - name: Publish the APK as the "android" release
+        if: github.ref == 'refs/heads/main'
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp web/android/app/build/outputs/apk/debug/app-debug.apk AfroViewz.apk
+          gh release delete android --cleanup-tag --yes || true
+          gh release create android AfroViewz.apk \
+            --target "$GITHUB_SHA" --latest \
+            --title "AfroViewz Android app" \
+            --notes "Install on Android: open this page on the phone, tap AfroViewz.apk, then allow installs from your browser when asked. Built from ${GITHUB_SHA::7} on $(date -u +'%d %b %Y'). Direct link: https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/AfroViewz.apk"

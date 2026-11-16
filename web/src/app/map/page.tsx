@@ -29,6 +29,7 @@ export default function MapPage() {
     let cancelled = false;
     (async () => {
       const ml = await import("maplibre-gl");
+      ml.setWorkerUrl(new URL("/maplibre/maplibre-gl-worker.mjs", location.href).href);
       if (cancelled || !el.current || map.current) return;
       const m = new ml.Map({ container: el.current, style: STYLE, center: KAMPALA, zoom: 11.5, attributionControl: { compact: true } });
       m.addControl(new ml.NavigationControl({ showCompass: false }), "top-right");

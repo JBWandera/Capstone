@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { PotholeDetector } from "@/lib/detector";
-import { BAND, toSourceScale } from "@/lib/detector";
+import { BAND, STREAM_MAX_SIDE, toSourceScale } from "@/lib/detector";
+import { markLiveRunning } from "@/lib/useDetector";
 import { drawBoxes } from "@/lib/draw";
 import { IouTracker } from "@/lib/tracker";
 import { addReport, cropThumb, currentFix, newId, startLocation, stopLocation } from "@/lib/reports";
@@ -50,6 +51,7 @@ export function LiveCamera({
       setCount(0);
       live.current = true;
       setOn(true);
+      markLiveRunning(true);
       loop();
     } catch (e) {
       setErr(
@@ -62,6 +64,7 @@ export function LiveCamera({
 
   function stop() {
     live.current = false;
+    markLiveRunning(false);
     stream.current?.getTracks().forEach((t) => t.stop());
     stream.current = null;
     stopLocation();
@@ -72,18 +75,37 @@ export function LiveCamera({
 
   useEffect(() => () => stop(), []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Leaving the app is not a crash: only flag live mode while it is on screen.
+  useEffect(() => {
+    const onVis = () => markLiveRunning(live.current && document.visibilityState === "visible");
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
+
   async function loop() {
     const v = video.current!;
     const c = overlay.current!;
     let frames = 0;
     let t0 = performance.now();
+    let last = 0;
     while (live.current) {
+      // At most about 8 detections a second: smoother on phones, less heat.
+      const wait = 120 - (performance.now() - last);
+      if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+      last = performance.now();
       if (v.readyState < 2 || !v.videoWidth) {
         await new Promise((r) => requestAnimationFrame(r));
         continue;
       }
       const band = dash.current && v.videoWidth > v.videoHeight ? BAND : undefined;
-      const d = await detector.detect(v, thr.current, band);
+      let d;
+      try {
+        d = await detector.detect(v, thr.current, band, STREAM_MAX_SIDE);
+      } catch (e) {
+        setErr(`Detection stopped: ${String((e as Error)?.message ?? e)}`);
+        stop();
+        return;
+      }
       const boxes = toSourceScale(d, v);
       const { active, fresh } = tracker.current.update(boxes, performance.now());
       drawBoxes(

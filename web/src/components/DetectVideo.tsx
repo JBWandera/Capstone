@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { PotholeDetector } from "@/lib/detector";
-import { BAND, toSourceScale } from "@/lib/detector";
+import { BAND, STREAM_MAX_SIDE, toSourceScale } from "@/lib/detector";
 import { drawBoxes } from "@/lib/draw";
 import { IouTracker } from "@/lib/tracker";
 
@@ -54,7 +54,7 @@ export function DetectVideo({
         continue;
       }
       const band = dash.current && v.videoWidth > v.videoHeight ? BAND : undefined;
-      const d = await detector.detect(v, thr.current, band);
+      const d = await detector.detect(v, thr.current, band, STREAM_MAX_SIDE);
       const boxes = toSourceScale(d, v);
       const { active, fresh } = tracker.current.update(boxes, v.currentTime * 1000);
       drawBoxes(

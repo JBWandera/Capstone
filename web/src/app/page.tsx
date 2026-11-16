@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useDetector } from "@/lib/useDetector";
-import { DEFAULT_THRESHOLD } from "@/lib/detector";
+import { DEFAULT_THRESHOLD, liteMode, setLiteMode } from "@/lib/detector";
 import { DetectPhoto } from "@/components/DetectPhoto";
 import { DetectVideo } from "@/components/DetectVideo";
 import { LiveCamera } from "@/components/LiveCamera";
@@ -70,7 +70,7 @@ export default function Home() {
 
       {det.status === "loading" && (
         <div className="bg-panel border border-line rounded-xl p-6 text-sm">
-          <div className="mb-3">Loading the detector (about 60 MB, once, then it works offline)…</div>
+          <div className="mb-3">Loading the detector (once, then it works offline)…</div>
           <div className="h-1.5 bg-line rounded-full overflow-hidden">
             <div className="h-full bg-amber transition-all" style={{ width: `${Math.round(det.progress * 100)}%` }} />
           </div>
@@ -86,9 +86,24 @@ export default function Home() {
           {mode === "photo" && <DetectPhoto detector={det.detector} threshold={threshold} />}
           {mode === "video" && <DetectVideo detector={det.detector} threshold={threshold} dashcam={dashcam} />}
           {mode === "live" && <LiveCamera detector={det.detector} threshold={threshold} dashcam={dashcam} />}
+          {det.recovered && (
+            <p className="text-sm bg-panel border border-amber/50 rounded-lg p-3">
+              The last live session stopped unexpectedly, so AfroViewz switched to lite mode (processor only). It is a
+              little slower but uses much less memory.
+            </p>
+          )}
           <p className="text-xs text-muted">
-            Running on {det.detector.backend === "webgpu" ? "the GPU (WebGPU)" : "the CPU (WebAssembly)"} at{" "}
-            {det.detector.resolution} px input.
+            Running on {det.detector.backend === "webgpu" ? "the graphics chip (WebGPU)" : "the processor (WebAssembly)"}
+            {liteMode() ? ", lite mode" : ""}.{" "}
+            <button
+              className="underline hover:text-ink"
+              onClick={() => {
+                setLiteMode(!liteMode());
+                location.reload();
+              }}
+            >
+              {liteMode() ? "Use the graphics chip" : "Switch to lite mode"}
+            </button>
           </p>
         </>
       )}

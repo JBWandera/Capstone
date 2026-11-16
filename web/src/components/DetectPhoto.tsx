@@ -63,6 +63,7 @@ export function DetectPhoto({ detector, threshold }: { detector: PotholeDetector
   const [all, setAll] = useState<Box[]>([]);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
+  const [needsLocation, setNeedsLocation] = useState(false);
 
   async function run() {
     const img = imgRef.current;
@@ -91,26 +92,66 @@ export function DetectPhoto({ detector, threshold }: { detector: PotholeDetector
     setRes(null);
     setAll([]);
     setSaved(null);
+    setNeedsLocation(false);
     setUrl(URL.createObjectURL(f));
   }
 
-  async function save() {
+  function hereNow(): Promise<{ lat: number; lon: number; acc: number } | null> {
+    return new Promise((resolve) => {
+      if (!("geolocation" in navigator)) return resolve(null);
+      navigator.geolocation.getCurrentPosition(
+        (p) => resolve({ lat: p.coords.latitude, lon: p.coords.longitude, acc: Math.round(p.coords.accuracy) }),
+        () => resolve(null),
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 },
+      );
+    });
+  }
+
+  async function save(useHere = false) {
     const img = imgRef.current;
     if (!img || !file) return;
-    const gps = await exifGps(file);
+    const exif = await exifGps(file);
+    const here = !exif && useHere ? await hereNow() : null;
+    if (!exif && !useHere) {
+      setNeedsLocation(true);
+      return;
+    }
+    setNeedsLocation(false);
     for (const b of shown) {
       await addReport({
         id: newId(),
-        createdAt: new Date(file.lastModified || Date.now()).toISOString(),
-        lat: gps?.lat ?? null,
-        lon: gps?.lon ?? null,
+        createdAt: new Date(exif ? file.lastModified || Date.now() : Date.now()).toISOString(),
+        lat: exif?.lat ?? here?.lat ?? null,
+        lon: exif?.lon ?? here?.lon ?? null,
+        accuracyM: here?.acc ?? null,
+        score: b.score,
+        source: "photo",
+        thumb: cropThumb(img, b),
+      });
+    }
+    setSaved(
+      exif || here
+        ? `Saved ${shown.length} to the map.`
+        : `Saved ${shown.length}, but without a location, so they are in the exports but not on the map.`,
+    );
+  }
+
+  async function saveNoLocation() {
+    const img = imgRef.current;
+    if (!img || !file) return;
+    for (const b of shown) {
+      await addReport({
+        id: newId(),
+        createdAt: new Date().toISOString(),
+        lat: null,
+        lon: null,
         accuracyM: null,
         score: b.score,
         source: "photo",
         thumb: cropThumb(img, b),
       });
     }
-    setSaved(gps ? `Saved ${shown.length} to the map` : `Saved ${shown.length}. This photo has no GPS, so it will not appear on the map.`);
+    setSaved(`Saved ${shown.length} without a location: they are in the CSV export but not on the map.`);
   }
 
   function downloadAnnotated() {
@@ -163,13 +204,35 @@ export function DetectPhoto({ detector, threshold }: { detector: PotholeDetector
               Download image
             </button>
             <button
-              onClick={save}
+              onClick={() => save(false)}
               disabled={!shown.length}
               className="px-3 py-1.5 rounded-md bg-amber text-amber-ink font-medium disabled:opacity-40"
             >
               Save reports
             </button>
           </div>
+          {needsLocation && (
+            <div className="w-full bg-panel border border-line rounded-lg p-3 space-y-2">
+              <p className="text-muted">
+                This photo carries no location (iPhone removes it when a photo is picked in the browser). Are you at
+                the spot where it was taken?
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => save(true)} className="px-3 py-1.5 rounded-md bg-amber text-amber-ink font-medium">
+                  Use my current location
+                </button>
+                <button
+                  onClick={async () => {
+                    setNeedsLocation(false);
+                    await saveNoLocation();
+                  }}
+                  className="px-3 py-1.5 rounded-md border border-line hover:border-amber"
+                >
+                  Save without location
+                </button>
+              </div>
+            </div>
+          )}
           {saved && <div className="w-full text-muted">{saved}</div>}
         </div>
       )}
